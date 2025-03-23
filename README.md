@@ -1,1 +1,1 @@
-# Authentication starter kit for Golang
+# Monorepo for all packages for go-auth project
