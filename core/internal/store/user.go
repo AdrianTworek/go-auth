@@ -167,6 +167,9 @@ func (s *UserStore) Update(ctx context.Context, user *User, tx *sqlx.Tx) (*User,
 			return nil, err
 		}
 		rows, err = query.QueryxContext(ctx, user)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err != nil {
 		return nil, err
