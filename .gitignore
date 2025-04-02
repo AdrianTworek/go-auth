@@ -22,3 +22,7 @@ go.work.sum
 tmp/
 # bin
 bin/
+# docker db
+database/
+# .DS_Store
+.DS_Store
