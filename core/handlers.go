@@ -74,7 +74,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		// 	return
 		// }
 
-		_, err = ac.store.Verification.Create(
+		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			store.NewVerification(
 				auth.EmailVerificationIntent,
@@ -94,11 +94,10 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		// TODO: Send verification email (AuthClient config)
-		// err = m.SendVerificationEmail(user.Email, validationToken)
-		// if err != nil {
-		// 	writeJSONError(w, http.StatusInternalServerError, err.Error())
-		// }
+		err = ac.config.Mailer.SendVerificationEmail(user.Email, verificationToken)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+		}
 
 		// TODO: Auto-login user after registration (AuthClient config)
 		// cookie := auth.NewSessionCookie(token)
@@ -110,7 +109,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 	type loginRequest struct {
-		Email    string `json:"email" validate:"required"`
+		Email    string `json:"email" validate:"required,email"`
 		Password string `json:"password" validate:"required"`
 	}
 
@@ -170,7 +169,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 func (ac *AuthClient) GetMeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user := getUserFromContext(r)
-		writeJSONResponse(w, http.StatusOK, map[string]any{"user": user})
+		writeJSONResponse(w, http.StatusOK, map[string]*store.User{"user": user})
 	}
 }
 
@@ -266,7 +265,7 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 			}
 		}(tx)
 
-		_, err = ac.store.Verification.Create(
+		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			store.NewVerification(
 				auth.MagicLinkIntent,
@@ -280,11 +279,10 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 			return
 		}
 
-		// TODO: Send magic link email (AuthClient config)
-		// if err = ac.mailer.SendMagicLinkEmail(req.Email, verificationToken); err != nil {
-		// 	writeJSONError(w, http.StatusInternalServerError, err.Error())
-		// 	return
-		// }
+		if err = ac.config.Mailer.SendMagicLinkEmail(req.Email, verificationToken); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 
 		if err = ac.store.Transaction.Commit(tx); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -304,7 +302,6 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 		}
 
 		verificationToken, err := ac.store.Verification.Validate(r.Context(), tokenStr, auth.MagicLinkIntent)
-
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "Invalid token")
 			return
@@ -376,6 +373,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 		cookie := auth.NewSessionCookie(sessionToken)
 		http.SetCookie(w, cookie)
 
+		// TODO: Redirect to the frontend (AuthClient config)
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
 	}
 }
@@ -408,7 +406,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			}
 		}(tx)
 
-		_, err = ac.store.Verification.Create(
+		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			store.NewVerification(
 				auth.PasswordResetIntent,
@@ -422,11 +420,10 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			return
 		}
 
-		// TODO: Send password reset email (AuthClient config)
-		// if err = ac.mailer.SendPasswordResetEmail(user.Email, token); err != nil {
-		// 	writeJSONError(w, http.StatusInternalServerError, err.Error())
-		// 	return
-		// }
+		if err = ac.config.Mailer.SendPasswordResetEmail(user.Email, verificationToken); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		if err = ac.store.Transaction.Commit(tx); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -494,10 +491,9 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		// TODO: Send password changed email (AuthClient config)
-		// if err = ac.mailer.SendPasswordChangedEmail(user.Email); err != nil {
-		// 	writeJSONError(w, http.StatusInternalServerError, "Failed to send email")
-		// }
+		if err = ac.config.Mailer.SendPasswordChangedEmail(user.Email); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Failed to send email")
+		}
 
 		if err = ac.store.Transaction.Commit(tx); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to commit changes")
