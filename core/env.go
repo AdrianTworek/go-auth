@@ -18,9 +18,12 @@ type Env struct {
 	GithubClientID     string
 }
 
-func NewEnv() (*Env, error) {
+func NewEnv(isTest bool) (*Env, error) {
 	_, b, _, _ := runtime.Caller(0)
 	configPath := filepath.Join(filepath.Dir(b), "..", ".env")
+	if isTest {
+		configPath = filepath.Join(filepath.Dir(b), "..", ".test.env")
+	}
 	viper.SetConfigFile(configPath)
 	viper.SetDefault("BASE_URL", "http://localhost:8080")
 	viper.SetDefault("PORT", "8080")

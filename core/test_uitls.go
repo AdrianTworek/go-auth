@@ -250,7 +250,7 @@ func PopulateDB(ctx context.Context, db *sql.DB) error {
 // SetupIntegration is starting the application, running the migrations, inserting the test data
 // into test database and returns pointer to application instance that is running
 func SetupIntegration(t *testing.T) (*TestApp, *pgContainer.PostgresContainer, *sql.DB) {
-	env, err := NewEnv()
+	env, err := NewEnv(true)
 	if err != nil {
 		t.Fatalf("Error in environment setup: %v", err)
 		return nil, nil, nil
