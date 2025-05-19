@@ -18,7 +18,7 @@ func InitAuth(ac *core.AuthClient, r *fiber.App) {
 	publicRouter := r.Group("/auth")
 	publicRouter.Post("/register", adaptor.HTTPHandlerFunc(ac.RegisterHandler()))
 	publicRouter.Post("/login", adaptor.HTTPHandlerFunc(ac.LoginHandler()))
-	publicRouter.Put("/verify/:token", func(c *fiber.Ctx) error {
+	publicRouter.Get("/verify/:token", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(ac.VerifyEmailHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
 
@@ -30,7 +30,7 @@ func InitAuth(ac *core.AuthClient, r *fiber.App) {
 
 	publicResetPasswordRouter := publicRouter.Group("/reset-password")
 	publicResetPasswordRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendPasswordResetLinkHandler()))
-	publicResetPasswordRouter.Get("/:token", func(c *fiber.Ctx) error {
+	publicResetPasswordRouter.Put("/:token", func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(ac.CompletePasswordResetHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
 

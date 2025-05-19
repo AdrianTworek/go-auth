@@ -18,7 +18,7 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	publicRouter := r.Group("/auth")
 	publicRouter.POST("/register", gin.WrapH(ac.RegisterHandler()))
 	publicRouter.POST("/login", gin.WrapH(ac.LoginHandler()))
-	publicRouter.PUT("/verify/:token", (func(c *gin.Context) {
+	publicRouter.GET("/verify/:token", (func(c *gin.Context) {
 		ac.VerifyEmailHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	}))
 
@@ -30,7 +30,7 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 
 	publicResetPasswordRouter := publicRouter.Group("/reset-password")
 	publicResetPasswordRouter.POST("/", gin.WrapH(ac.SendPasswordResetLinkHandler()))
-	publicResetPasswordRouter.GET("/:token", func(c *gin.Context) {
+	publicResetPasswordRouter.PUT("/:token", func(c *gin.Context) {
 		ac.CompletePasswordResetHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	})
 
