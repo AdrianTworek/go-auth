@@ -19,33 +19,34 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/stretchr/testify/mock"
 	"github.com/testcontainers/testcontainers-go"
 	pgContainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-type SpyMailer struct {
-	// Generic token that represents the verification, password reset or magic link token
-	Token string
+type MockMailer struct {
+	mock.Mock
 }
 
-func (m *SpyMailer) SendVerificationEmail(to, token string) error {
-	m.Token = token
-	return nil
+func (m *MockMailer) SendVerificationEmail(to, token string) error {
+	args := m.Called(to, token)
+	return args.Error(0)
 }
 
-func (m *SpyMailer) SendPasswordResetEmail(to, token string) error {
-	m.Token = token
-	return nil
+func (m *MockMailer) SendPasswordResetEmail(to, token string) error {
+	args := m.Called(to, token)
+	return args.Error(0)
 }
 
-func (m *SpyMailer) SendPasswordChangedEmail(to string) error {
-	return nil
+func (m *MockMailer) SendPasswordChangedEmail(to string) error {
+	args := m.Called(to)
+	return args.Error(0)
 }
 
-func (m *SpyMailer) SendMagicLinkEmail(to, token string) error {
-	m.Token = token
-	return nil
+func (m *MockMailer) SendMagicLinkEmail(to, token string) error {
+	args := m.Called(to, token)
+	return args.Error(0)
 }
 
 type ChiParamExtractor struct {
@@ -59,7 +60,7 @@ func (c *ChiParamExtractor) GetParam(key string) string {
 type TestApp struct {
 	env     *Env
 	storage *store.Storage
-	mailer  *SpyMailer
+	mailer  *MockMailer
 }
 
 func NewTestApp(env *Env) (*TestApp, error) {
@@ -72,7 +73,7 @@ func NewTestApp(env *Env) (*TestApp, error) {
 
 	storage := store.NewStorage(db)
 
-	mailer := &SpyMailer{}
+	mailer := &MockMailer{}
 
 	return &TestApp{
 		env:     env,

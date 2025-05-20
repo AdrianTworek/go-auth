@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 type TestUser struct {
@@ -129,8 +130,13 @@ func Test_Integration_RegisterUserSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendVerificationEmail", userEmail, mock.Anything).Return(nil)
+
 	helper := newTestHelper(t, app)
-	user, _ := helper.CreateUser("new_user@example.com", "Password123!")
+	user, _ := helper.CreateUser(userEmail, "Password123!")
+
+	app.mailer.AssertExpectations(t)
 
 	dbUser, err := app.storage.User.GetByEmail(t.Context(), user.Email, nil)
 	assert.NoError(t, err)
@@ -247,15 +253,21 @@ func Test_Integration_VerifyEmailSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendVerificationEmail", userEmail, mock.Anything).Return(nil)
+
 	helper := newTestHelper(t, app)
-	helper.CreateUser("new_user@example.com", "Password123!")
+	helper.CreateUser(userEmail, "Password123!")
 
 	dbUser, err := app.storage.User.GetByEmail(t.Context(), "new_user@example.com", nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.False(t, dbUser.EmailVerified)
 
-	token := app.mailer.Token
+	app.mailer.AssertExpectations(t)
+
+	calls := app.mailer.Calls
+	token := calls[0].Arguments[1].(string)
 	assert.NotEmpty(t, token)
 
 	req := httptest.NewRequest(
@@ -279,9 +291,6 @@ func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
-	helper := newTestHelper(t, app)
-	helper.CreateUser("new_user@example.com", "Password123!")
-
 	req := httptest.NewRequest(
 		http.MethodGet,
 		"/auth/verify/invalid_token",
@@ -298,8 +307,12 @@ func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendVerificationEmail", mock.Anything, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordResetEmail", userEmail, mock.Anything).Return(nil)
+
 	helper := newTestHelper(t, app)
-	user, _ := helper.CreateUser("new_user@example.com", "Password123!")
+	user, _ := helper.CreateUser(userEmail, "Password123!")
 
 	body := map[string]string{
 		"email": user.Email,
@@ -316,8 +329,7 @@ func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.Router().ServeHTTP(rr, req)
 
-	token := app.mailer.Token
-	assert.NotEmpty(t, token)
+	app.mailer.AssertExpectations(t)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
@@ -348,8 +360,14 @@ func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+
+	app.mailer.On("SendVerificationEmail", mock.Anything, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordResetEmail", userEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordChangedEmail", userEmail).Return(nil)
+
 	helper := newTestHelper(t, app)
-	user, _ := helper.CreateUser("new_user@example.com", "Password123!")
+	user, _ := helper.CreateUser(userEmail, "Password123!")
 
 	// Send password reset link
 	body := map[string]string{
@@ -369,7 +387,8 @@ func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	token := app.mailer.Token
+	calls := app.mailer.Calls
+	token := calls[1].Arguments[1].(string)
 	assert.NotEmpty(t, token)
 
 	// Complete password reset
@@ -401,8 +420,12 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendVerificationEmail", mock.Anything, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordResetEmail", mock.Anything, mock.Anything).Return(nil)
+
 	helper := newTestHelper(t, app)
-	user, _ := helper.CreateUser("new_user@example.com", "Password123!")
+	user, _ := helper.CreateUser(userEmail, "Password123!")
 
 	// Send password reset link
 	body := map[string]string{
@@ -422,7 +445,8 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	token := app.mailer.Token
+	calls := app.mailer.Calls
+	token := calls[0].Arguments[1].(string)
 	assert.NotEmpty(t, token)
 
 	// Complete password reset
@@ -454,8 +478,11 @@ func Test_Integration_SendMagicLink(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendMagicLinkEmail", userEmail, mock.Anything).Return(nil)
+
 	body := map[string]string{
-		"email": "new_user@example.com",
+		"email": userEmail,
 	}
 	jsonBody, err := json.Marshal(body)
 	assert.NoError(t, err)
@@ -469,6 +496,12 @@ func Test_Integration_SendMagicLink(t *testing.T) {
 	rr := httptest.NewRecorder()
 	app.Router().ServeHTTP(rr, req)
 
+	calls := app.mailer.Calls
+	token := calls[0].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	app.mailer.AssertExpectations(t)
+
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
 
@@ -476,8 +509,11 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendMagicLinkEmail", userEmail, mock.Anything).Return(nil)
+
 	body := map[string]string{
-		"email": "new_user@example.com",
+		"email": userEmail,
 	}
 	jsonBody, err := json.Marshal(body)
 	assert.NoError(t, err)
@@ -508,7 +544,7 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
 	// Valid magic link
-	token = app.mailer.Token
+	token = app.mailer.Calls[0].Arguments[1].(string)
 	assert.NotEmpty(t, token)
 
 	req = httptest.NewRequest(
@@ -519,6 +555,8 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 
 	rr = httptest.NewRecorder()
 	app.Router().ServeHTTP(rr, req)
+
+	app.mailer.AssertExpectations(t)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 }
