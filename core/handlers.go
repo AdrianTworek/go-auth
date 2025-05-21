@@ -57,22 +57,23 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		// TODO: Create session (AuthClient config)
-		// token, err := ac.store.Session.Create(
-		// 	r.Context(),
-		// 	&store.Session{
-		// 		UserID:    user.ID,
-		// 		IPAddress: r.RemoteAddr,
-		// 		UserAgent: r.UserAgent(),
-		// 		ExpiresAt: time.Now().Add(24 * time.Hour),
-		// 	},
-		// 	tx,
-		// )
-
-		// if err != nil {
-		// 	writeJSONError(w, http.StatusInternalServerError, err.Error())
-		// 	return
-		// }
+		var token string
+		if ac.config.Session.LoginAfterRegister {
+			token, err = ac.store.Session.Create(
+				r.Context(),
+				&store.Session{
+					UserID:    user.ID,
+					IPAddress: r.RemoteAddr,
+					UserAgent: r.UserAgent(),
+					ExpiresAt: time.Now().Add(24 * time.Hour),
+				},
+				tx,
+			)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
 
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
@@ -99,9 +100,10 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 		}
 
-		// TODO: Auto-login user after registration (AuthClient config)
-		// cookie := auth.NewSessionCookie(token)
-		// http.SetCookie(w, cookie)
+		if token != "" && ac.config.Session.LoginAfterRegister {
+			cookie := auth.NewSessionCookie(token)
+			http.SetCookie(w, cookie)
+		}
 
 		writeJSONResponse(w, http.StatusCreated, map[string]any{"message": "User registered successfully"})
 	}
