@@ -43,7 +43,7 @@ type VerificationStore struct {
 	db *sqlx.DB
 }
 
-func (s *VerificationStore) Create(ctx context.Context, verification *Verification, tx *sqlx.Tx) (string, error) {
+func (s *VerificationStore) Create(ctx context.Context, tx *sqlx.Tx, verification *Verification) (string, error) {
 	query := `
 		INSERT INTO verifications (user_id, value, expires_at, intent, email)
 		VALUES (:user_id, :value, :expires_at, :intent, :email)
@@ -71,7 +71,7 @@ func (s *VerificationStore) Create(ctx context.Context, verification *Verificati
 	return verificationToken, nil
 }
 
-func (s *VerificationStore) Validate(ctx context.Context, tokenStr string, intent auth.VerificationIntent) (*Verification, error) {
+func (s *VerificationStore) Validate(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error) {
 	query := `
 		SELECT * FROM verifications 
     WHERE value = $1 AND intent = $2 AND expires_at > NOW()
@@ -94,7 +94,7 @@ func (s *VerificationStore) Validate(ctx context.Context, tokenStr string, inten
 	return token, nil
 }
 
-func (s *VerificationStore) Delete(ctx context.Context, token string, tx *sqlx.Tx) error {
+func (s *VerificationStore) Delete(ctx context.Context, tx *sqlx.Tx, token string) error {
 	query := `
 		DELETE FROM verifications 
 		WHERE value = $1
