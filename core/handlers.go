@@ -1,6 +1,7 @@
 package core
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -240,6 +241,12 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if ac.config.Session.FrontendRedirectURL == "" {
+			// TODO: Add option to configure logger in Config
+			slog.Error("FrontendRedirectURL is not set, it is required for magic link login")
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
 		sessionCookie, err := r.Cookie("session")
 		if err == nil {
 			_, err := ac.store.Session.Validate(r.Context(), sessionCookie.Value)
@@ -375,8 +382,13 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 		cookie := auth.NewSessionCookie(sessionToken)
 		http.SetCookie(w, cookie)
 
-		// TODO: Redirect to the frontend (AuthClient config)
-		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
+		if ac.config.Session.FrontendRedirectURL == "" {
+			// TODO: update when logger is configured
+			slog.Error("FrontendRedirectURL is not set, it is required for magic link login")
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+		http.Redirect(w, r, ac.config.Session.FrontendRedirectURL, http.StatusSeeOther)
 	}
 }
 
