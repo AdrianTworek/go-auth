@@ -75,11 +75,6 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			}
 		}
 
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			store.NewVerification(
