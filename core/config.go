@@ -12,5 +12,6 @@ type DatabaseConfig struct {
 	Dsn string
 }
 
-// TODO: Implement
-type SessionConfig struct{}
+type SessionConfig struct {
+	LoginAfterRegister bool
+}

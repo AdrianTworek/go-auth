@@ -63,7 +63,7 @@ type TestApp struct {
 	mailer  *MockMailer
 }
 
-func NewTestApp(env *Env) (*TestApp, error) {
+func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
 	db, err := db.NewPostgres(env.DSN)
 	if err != nil {
 		fmt.Println("Error connecting to the database")
@@ -71,14 +71,15 @@ func NewTestApp(env *Env) (*TestApp, error) {
 		return nil, err
 	}
 
-	storage := store.NewStorage(db)
+	s := store.NewStorage(db)
 
-	mailer := &MockMailer{}
+	m := &MockMailer{}
+	c.Mailer = m
 
 	return &TestApp{
 		env:     env,
-		storage: storage,
-		mailer:  mailer,
+		storage: s,
+		mailer:  m,
 	}, nil
 }
 
@@ -248,9 +249,28 @@ func PopulateDB(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
+func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig) *AuthConfig {
+	if db == nil {
+		db = &DatabaseConfig{
+			Dsn: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+		}
+	}
+	if s == nil {
+		s = &SessionConfig{
+			LoginAfterRegister: true,
+		}
+	}
+
+	return &AuthConfig{
+		Db:      *db,
+		Session: *s,
+		Mailer:  nil,
+	}
+}
+
 // SetupIntegration is starting the application, running the migrations, inserting the test data
 // into test database and returns pointer to application instance that is running
-func SetupIntegration(t *testing.T) (*TestApp, *pgContainer.PostgresContainer, *sql.DB) {
+func SetupIntegration(t *testing.T, c *AuthConfig) (*TestApp, *pgContainer.PostgresContainer, *sql.DB) {
 	env, err := NewEnv(true)
 	if err != nil {
 		t.Fatalf("Error in environment setup: %v", err)
@@ -269,7 +289,11 @@ func SetupIntegration(t *testing.T) (*TestApp, *pgContainer.PostgresContainer, *
 		return nil, nil, nil
 	}
 
-	app, err := NewTestApp(env)
+	if c == nil {
+		c = NewTestAuthConfig(nil, nil)
+	}
+
+	app, err := NewTestApp(env, c)
 	if err != nil {
 		t.Fatalf("Error in application bootstrap: %v", err)
 		return nil, nil, nil

@@ -118,7 +118,7 @@ func (th *TestHelper) LoginAs(userType TestUserType) (*TestUser, *httptest.Respo
 }
 
 func Test_Application_Start(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	assert.NotNil(t, app)
@@ -127,7 +127,7 @@ func Test_Application_Start(t *testing.T) {
 }
 
 func Test_Integration_RegisterUserSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -146,8 +146,31 @@ func Test_Integration_RegisterUserSuccess(t *testing.T) {
 	assert.NotEmpty(t, dbUser.ID)
 }
 
+func Test_Integration_DontCreateSessionAfterRegister(t *testing.T) {
+	c := NewTestAuthConfig(nil, &SessionConfig{LoginAfterRegister: false})
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := "new_user@example.com"
+	app.mailer.On("SendVerificationEmail", userEmail, mock.Anything).Return(nil)
+
+	helper := newTestHelper(t, app)
+
+	user, rr := helper.CreateUser(
+		userEmail,
+		"Password123!",
+	)
+
+	app.mailer.AssertExpectations(t)
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	assert.Empty(t, user.SessionID)
+	sessionCookie := helper.GetSessionCookie(rr)
+	assert.Nil(t, sessionCookie)
+}
+
 func Test_Integration_RegisterUserInvalidInput(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	helper := newTestHelper(t, app)
@@ -161,7 +184,7 @@ func Test_Integration_RegisterUserInvalidInput(t *testing.T) {
 }
 
 func Test_Integration_LoginUserSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	helper := newTestHelper(t, app)
@@ -180,7 +203,7 @@ func Test_Integration_LoginUserSuccess(t *testing.T) {
 }
 
 func Test_Integration_LoginUserInvalidInput(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	helper := newTestHelper(t, app)
@@ -195,7 +218,7 @@ func Test_Integration_LoginUserInvalidInput(t *testing.T) {
 }
 
 func Test_Integration_GetMeSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	helper := newTestHelper(t, app)
@@ -222,7 +245,7 @@ func Test_Integration_GetMeSuccess(t *testing.T) {
 }
 
 func Test_Integration_LogoutUser(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	helper := newTestHelper(t, app)
@@ -250,7 +273,7 @@ func Test_Integration_LogoutUser(t *testing.T) {
 }
 
 func Test_Integration_VerifyEmailSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -288,7 +311,7 @@ func Test_Integration_VerifyEmailSuccess(t *testing.T) {
 }
 
 func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	req := httptest.NewRequest(
@@ -304,7 +327,7 @@ func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
 }
 
 func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -335,7 +358,7 @@ func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 }
 
 func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	body := map[string]string{
@@ -357,7 +380,7 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 }
 
 func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -417,7 +440,7 @@ func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
 }
 
 func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -475,7 +498,7 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 }
 
 func Test_Integration_SendMagicLink(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -506,7 +529,7 @@ func Test_Integration_SendMagicLink(t *testing.T) {
 }
 
 func Test_Integration_CompleteMagicLink(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t)
+	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
