@@ -138,7 +138,7 @@ func Test_Integration_RegisterUserSuccess(t *testing.T) {
 
 	app.mailer.AssertExpectations(t)
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), user.Email, nil)
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, user.Email)
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.Equal(t, user.Email, dbUser.Email)
@@ -178,7 +178,7 @@ func Test_Integration_RegisterUserInvalidInput(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), "test", nil)
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, "test")
 	assert.Error(t, err)
 	assert.Nil(t, dbUser)
 }
@@ -197,7 +197,7 @@ func Test_Integration_LoginUserSuccess(t *testing.T) {
 	assert.NotNil(t, sessionCookie)
 	assert.NotEmpty(t, sessionCookie.Value)
 
-	session, err := app.storage.Session.Validate(t.Context(), user.SessionID)
+	session, err := app.storage.Session.Validate(t.Context(), nil, user.SessionID)
 	assert.NoError(t, err)
 	assert.NotNil(t, session)
 }
@@ -267,7 +267,7 @@ func Test_Integration_LogoutUser(t *testing.T) {
 	assert.NotNil(t, sessionCookie)
 	assert.Equal(t, sessionCookie.MaxAge, 0)
 
-	session, err := app.storage.Session.Validate(t.Context(), sessionCookie.Value)
+	session, err := app.storage.Session.Validate(t.Context(), nil, sessionCookie.Value)
 	assert.Error(t, err)
 	assert.Nil(t, session)
 }
@@ -282,7 +282,7 @@ func Test_Integration_VerifyEmailSuccess(t *testing.T) {
 	helper := newTestHelper(t, app)
 	helper.CreateUser(userEmail, "Password123!")
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), "new_user@example.com", nil)
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, "new_user@example.com")
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.False(t, dbUser.EmailVerified)
@@ -304,7 +304,7 @@ func Test_Integration_VerifyEmailSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	dbUser, err = app.storage.User.GetByEmail(t.Context(), "new_user@example.com", nil)
+	dbUser, err = app.storage.User.GetByEmail(t.Context(), nil, "new_user@example.com")
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.True(t, dbUser.EmailVerified)
@@ -433,7 +433,7 @@ func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), user.Email, nil)
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, user.Email)
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.True(t, dbUser.Password.Compare("NewP@ssword123!"))
@@ -491,7 +491,7 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), user.Email, nil)
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, user.Email)
 	assert.NoError(t, err)
 	assert.NotNil(t, dbUser)
 	assert.True(t, dbUser.Password.Compare("Password123!"))

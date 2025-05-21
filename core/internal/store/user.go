@@ -52,7 +52,7 @@ type UserStore struct {
 	db *sqlx.DB
 }
 
-func (s *UserStore) Create(ctx context.Context, user *User, tx *sqlx.Tx) error {
+func (s *UserStore) Create(ctx context.Context, tx *sqlx.Tx, user *User) error {
 	query := `
     INSERT INTO users (email, password, email_verified, avatar_url, avatar_source, oauth_provider, oauth_id)
     VALUES (:email, :password, :email_verified, :avatar_url, :avatar_source, :oauth_provider, :oauth_id)
@@ -80,7 +80,7 @@ func (s *UserStore) Create(ctx context.Context, user *User, tx *sqlx.Tx) error {
 	return nil
 }
 
-func (s *UserStore) GetByID(ctx context.Context, id string, tx *sqlx.Tx) (*User, error) {
+func (s *UserStore) GetByID(ctx context.Context, tx *sqlx.Tx, id string) (*User, error) {
 	query := `
     SELECT * FROM users
     WHERE id = $1
@@ -108,7 +108,7 @@ func (s *UserStore) GetByID(ctx context.Context, id string, tx *sqlx.Tx) (*User,
 	return user, nil
 }
 
-func (s *UserStore) GetByEmail(ctx context.Context, email string, tx *sqlx.Tx) (*User, error) {
+func (s *UserStore) GetByEmail(ctx context.Context, tx *sqlx.Tx, email string) (*User, error) {
 	query := `
     SELECT * FROM users
     WHERE email = $1
@@ -136,7 +136,7 @@ func (s *UserStore) GetByEmail(ctx context.Context, email string, tx *sqlx.Tx) (
 	return user, nil
 }
 
-func (s *UserStore) Update(ctx context.Context, user *User, tx *sqlx.Tx) (*User, error) {
+func (s *UserStore) Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User, error) {
 	query := `
 	UPDATE users
 	SET 
