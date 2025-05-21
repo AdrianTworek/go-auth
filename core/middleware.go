@@ -18,7 +18,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 				return
 			}
 
-			session, err := ac.store.Session.Validate(r.Context(), token.Value)
+			session, err := ac.store.Session.Validate(r.Context(), nil, token.Value)
 			if err != nil {
 				writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 				return
@@ -27,7 +27,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 			// Skip session refresh for logout requests
 			if !strings.HasSuffix(r.URL.Path, "/logout") {
 				if time.Until(session.ExpiresAt) < auth.SessionRefreshThreshold {
-					newToken, err := ac.store.Session.Refresh(r.Context(), token.Value)
+					newToken, err := ac.store.Session.Refresh(r.Context(), nil, token.Value)
 					if err != nil {
 						writeJSONError(w, http.StatusInternalServerError, "failed to refresh session")
 						return
@@ -37,7 +37,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 				}
 			}
 
-			user, err := ac.store.User.GetByID(r.Context(), session.UserID, nil)
+			user, err := ac.store.User.GetByID(r.Context(), nil, session.UserID)
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
 				return

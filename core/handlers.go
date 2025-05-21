@@ -40,7 +40,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			}
 		}(tx)
 
-		err = ac.store.User.Create(r.Context(), newUser, tx)
+		err = ac.store.User.Create(r.Context(), tx, newUser)
 		if err != nil && err != store.ErrDuplicateEmail {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -51,7 +51,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		user, err := ac.store.User.GetByEmail(r.Context(), req.Email, tx)
+		user, err := ac.store.User.GetByEmail(r.Context(), tx, req.Email)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -61,13 +61,13 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		if ac.config.Session.LoginAfterRegister {
 			token, err = ac.store.Session.Create(
 				r.Context(),
+				tx,
 				&store.Session{
 					UserID:    user.ID,
 					IPAddress: r.RemoteAddr,
 					UserAgent: r.UserAgent(),
 					ExpiresAt: time.Now().Add(24 * time.Hour),
 				},
-				tx,
 			)
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -77,12 +77,12 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
+			tx,
 			store.NewVerification(
 				auth.EmailVerificationIntent,
 				nil,
 				auth.NewNullString(user.ID),
 			),
-			tx,
 		)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -118,7 +118,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessCookie, err := r.Cookie("session")
 		if err == nil {
-			_, err := ac.store.Session.Validate(r.Context(), sessCookie.Value)
+			_, err := ac.store.Session.Validate(r.Context(), nil, sessCookie.Value)
 			if err == nil {
 				writeJSONError(w, http.StatusBadRequest, "User already logged in")
 				return
@@ -131,7 +131,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		user, err := ac.store.User.GetByEmail(r.Context(), req.Email, nil)
+		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
 		if err != nil && err != store.ErrNotFound {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -148,13 +148,13 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 
 		token, err := ac.store.Session.Create(
 			r.Context(),
+			nil,
 			&store.Session{
 				UserID:    user.ID,
 				IPAddress: r.RemoteAddr,
 				UserAgent: r.UserAgent(),
 				ExpiresAt: time.Now().Add(24 * time.Hour),
 			},
-			nil,
 		)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -182,7 +182,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
-		err = ac.store.Session.Delete(r.Context(), token.Value, nil)
+		err = ac.store.Session.Delete(r.Context(), nil, token.Value)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -203,7 +203,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			return
 		}
 
-		token, err := ac.store.Verification.Validate(r.Context(), tokenStr, auth.EmailVerificationIntent)
+		token, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.EmailVerificationIntent)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "Invalid token")
 			return
@@ -212,19 +212,19 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
 			return
 		}
-		user, err := ac.store.User.GetByID(r.Context(), token.UserID.String, nil)
+		user, err := ac.store.User.GetByID(r.Context(), nil, token.UserID.String)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		user.EmailVerified = true
-		_, err = ac.store.User.Update(r.Context(), user, nil)
+		_, err = ac.store.User.Update(r.Context(), nil, user)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		err = ac.store.Verification.Delete(r.Context(), token.Value, nil)
+		err = ac.store.Verification.Delete(r.Context(), nil, token.Value)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -242,7 +242,7 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		sessionCookie, err := r.Cookie("session")
 		if err == nil {
-			_, err := ac.store.Session.Validate(r.Context(), sessionCookie.Value)
+			_, err := ac.store.Session.Validate(r.Context(), nil, sessionCookie.Value)
 			if err == nil {
 				writeJSONError(w, http.StatusBadRequest, "User already logged in")
 				return
@@ -269,12 +269,12 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
+			tx,
 			store.NewVerification(
 				auth.MagicLinkIntent,
 				auth.NewNullString(req.Email),
 				nil,
 			),
-			tx,
 		)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -303,7 +303,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			return
 		}
 
-		verificationToken, err := ac.store.Verification.Validate(r.Context(), tokenStr, auth.MagicLinkIntent)
+		verificationToken, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.MagicLinkIntent)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "Invalid token")
 			return
@@ -326,7 +326,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			}
 		}(tx)
 
-		user, err := ac.store.User.GetByEmail(r.Context(), verificationToken.Email.String, nil)
+		user, err := ac.store.User.GetByEmail(r.Context(), nil, verificationToken.Email.String)
 
 		if err != nil {
 			// User does not exist, register the user with the email passed in the query string
@@ -339,12 +339,12 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 					nil,
 					nil,
 				)
-				if err = ac.store.User.Create(r.Context(), user, tx); err != nil {
+				if err = ac.store.User.Create(r.Context(), tx, user); err != nil {
 					writeJSONError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
 
-				user, err = ac.store.User.GetByEmail(r.Context(), verificationToken.Email.String, tx)
+				user, err = ac.store.User.GetByEmail(r.Context(), tx, verificationToken.Email.String)
 				if err != nil {
 					writeJSONError(w, http.StatusInternalServerError, err.Error())
 					return
@@ -355,12 +355,12 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			}
 		}
 
-		sessionToken, err := ac.store.Session.Create(r.Context(), &store.Session{
+		sessionToken, err := ac.store.Session.Create(r.Context(), tx, &store.Session{
 			UserID:    user.ID,
 			IPAddress: r.RemoteAddr,
 			UserAgent: r.UserAgent(),
 			ExpiresAt: time.Now().Add(24 * time.Hour),
-		}, tx)
+		})
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -392,7 +392,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			return
 		}
 
-		user, err := ac.store.User.GetByEmail(r.Context(), req.Email, nil)
+		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
 		if err != nil && err != store.ErrNotFound {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 		}
@@ -410,12 +410,12 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
+			tx,
 			store.NewVerification(
 				auth.PasswordResetIntent,
 				nil,
 				auth.NewNullString(user.ID),
 			),
-			tx,
 		)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -448,7 +448,7 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		token, err := ac.store.Verification.Validate(r.Context(), tokenStr, auth.PasswordResetIntent)
+		token, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.PasswordResetIntent)
 		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "Invalid token")
 			return
@@ -463,7 +463,7 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		user, err := ac.store.User.GetByID(r.Context(), token.UserID.String, nil)
+		user, err := ac.store.User.GetByID(r.Context(), nil, token.UserID.String)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to get user")
 			return
@@ -483,12 +483,12 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 		}(tx)
 
 		user.Password.Set(req.Password)
-		if _, err = ac.store.User.Update(r.Context(), user, tx); err != nil {
+		if _, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to update password")
 			return
 		}
 
-		if err = ac.store.Verification.Delete(r.Context(), token.Value, tx); err != nil {
+		if err = ac.store.Verification.Delete(r.Context(), tx, token.Value); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to delete token")
 			return
 		}
