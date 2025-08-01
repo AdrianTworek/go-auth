@@ -544,7 +544,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		user, err := ac.store.User.GetByEmail(r.Context(), gothUser.Email, nil)
+		user, err := ac.store.User.GetByEmail(r.Context(), nil, gothUser.Email)
 		if err != nil {
 			if err == store.ErrNotFound {
 				// User does not exist, create a new one
@@ -556,12 +556,12 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 					OAuthProvider: auth.NewNullString(gothUser.Provider),
 					OAuthID:       auth.NewNullString(gothUser.UserID),
 				}
-				if err = ac.store.User.Create(r.Context(), user, tx); err != nil {
+				if err = ac.store.User.Create(r.Context(), tx, user); err != nil {
 					writeJSONError(w, http.StatusInternalServerError, err.Error())
 					return
 				}
 
-				user, err = ac.store.User.GetByEmail(r.Context(), gothUser.Email, tx)
+				user, err = ac.store.User.GetByEmail(r.Context(), tx, gothUser.Email)
 				if err != nil {
 					writeJSONError(w, http.StatusInternalServerError, err.Error())
 					return
@@ -577,7 +577,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			user.OAuthProvider = auth.NewNullString(gothUser.Provider)
 			user.OAuthID = auth.NewNullString(gothUser.UserID)
 			user.EmailVerified = true
-			user, err = ac.store.User.Update(r.Context(), user, tx)
+			user, err = ac.store.User.Update(r.Context(), tx, user)
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -588,7 +588,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 		if !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
 			user.AvatarURL = auth.NewNullString(gothUser.AvatarURL)
 			user.AvatarSource = auth.NewNullString("oauth")
-			user, err = ac.store.User.Update(r.Context(), user, tx)
+			user, err = ac.store.User.Update(r.Context(), tx, user)
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, err.Error())
 				return
@@ -597,13 +597,13 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 
 		token, err := ac.store.Session.Create(
 			r.Context(),
+			tx,
 			&store.Session{
 				UserID:    user.ID,
 				IPAddress: r.RemoteAddr,
 				UserAgent: r.UserAgent(),
 				ExpiresAt: time.Now().Add(24 * time.Hour),
 			},
-			tx,
 		)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
