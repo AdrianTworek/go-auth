@@ -52,7 +52,7 @@ func main() {
 				<title>My HTML Page</title>
 			</head>
 			<body>
-				<h1>Login failed</h1>
+				<h1>Login Failed</h1>
 			</body>
 		</html>
 		`
