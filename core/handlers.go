@@ -1,6 +1,7 @@
 package core
 
 import (
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -240,10 +241,17 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !ac.CanLoginWithMagicLink() {
+			// TODO: Add option to configure logger in Config
+			slog.Error("FrontendRedirectURL is not set, it is required for magic link login")
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
 		sessionCookie, err := r.Cookie("session")
 		if err == nil {
 			_, err := ac.store.Session.Validate(r.Context(), sessionCookie.Value)
 			if err == nil {
+
 				writeJSONError(w, http.StatusBadRequest, "User already logged in")
 				return
 			}
@@ -296,28 +304,40 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 }
 
 func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) http.HandlerFunc {
+
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !ac.CanLoginWithMagicLink() {
+			// NOTE: this should not happen because mail should not be sent
+			// when frontend redirect urls are not set
+			slog.Error("Magic link frontend redirect urls not set, it is required for magic link login")
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
 		tokenStr := extractor.GetParam("token")
 		if tokenStr == "" {
-			writeJSONError(w, http.StatusBadRequest, "Token is required")
+			slog.Error("Token is required")
+			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
 
 		verificationToken, err := ac.store.Verification.Validate(r.Context(), tokenStr, auth.MagicLinkIntent)
 		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			slog.Error("Token is invalid")
+			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
 
 		// Email is required for magic link sign in to make sure we can create a user if it doesn't exist and find user by email if it does
 		if !verificationToken.Email.Valid {
-			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			slog.Error("Email is invalid")
+			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			ac.FailedMagicLinkRedirect(w, r)
+			return
 		}
 
 		defer func(tx *sqlx.Tx) {
@@ -340,17 +360,17 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 					nil,
 				)
 				if err = ac.store.User.Create(r.Context(), user, tx); err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					ac.FailedMagicLinkRedirect(w, r)
 					return
 				}
 
 				user, err = ac.store.User.GetByEmail(r.Context(), verificationToken.Email.String, tx)
 				if err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					ac.FailedMagicLinkRedirect(w, r)
 					return
 				}
 			} else {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				ac.FailedMagicLinkRedirect(w, r)
 				return
 			}
 		}
@@ -362,21 +382,25 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		}, tx)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			ac.FailedMagicLinkRedirect(w, r)
+			return
+		}
+
+		if err = ac.store.Verification.Delete(r.Context(), verificationToken.Value, tx); err != nil {
+			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
 
 		err = ac.store.Transaction.Commit(tx)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
 
 		cookie := auth.NewSessionCookie(sessionToken)
 		http.SetCookie(w, cookie)
 
-		// TODO: Redirect to the frontend (AuthClient config)
-		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
+		ac.SuccessMagicLinkRedirect(w, r)
 	}
 }
 

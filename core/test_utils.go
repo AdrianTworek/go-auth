@@ -59,8 +59,9 @@ func (c *ChiParamExtractor) GetParam(key string) string {
 
 type TestApp struct {
 	env     *Env
-	storage *store.Storage
+	config  *AuthConfig
 	mailer  *MockMailer
+	storage *store.Storage
 }
 
 func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
@@ -78,8 +79,9 @@ func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
 
 	return &TestApp{
 		env:     env,
-		storage: s,
+		config:  c,
 		mailer:  m,
+		storage: s,
 	}, nil
 }
 
@@ -90,8 +92,10 @@ func (a *TestApp) Router() *chi.Mux {
 		Db: DatabaseConfig{
 			Dsn: a.env.DSN,
 		},
-		Mailer: a.mailer,
+		Mailer:  a.mailer,
+		Session: a.config.Session,
 	})
+
 	if err != nil {
 		return nil
 	}
@@ -257,7 +261,9 @@ func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig) *AuthConfig {
 	}
 	if s == nil {
 		s = &SessionConfig{
-			LoginAfterRegister: true,
+			LoginAfterRegister:            true,
+			MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
+			MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
 		}
 	}
 
