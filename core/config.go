@@ -10,6 +10,7 @@ type AuthConfig struct {
 	Session       *SessionConfig
 	OAuth         *OAuthConfig
 	Mailer        mailer.Mailer
+	Hooks         *HookMap
 	BaseURL       string
 	SessionSecret string
 }
