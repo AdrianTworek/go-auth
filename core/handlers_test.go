@@ -498,7 +498,12 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 }
 
 func Test_Integration_SendMagicLink(t *testing.T) {
-	app, dbCtr, db := SetupIntegration(t, nil)
+	c := NewTestAuthConfig(nil, &SessionConfig{
+		MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
+		MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
+		LoginAfterRegister:            true,
+	})
+	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
 
 	userEmail := "new_user@example.com"
@@ -552,7 +557,7 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 
-	// Invalid magic link
+	// NOTE: first send request with invalid magic link to check if redirect to failed page works
 	token := "invalid_token"
 
 	req = httptest.NewRequest(
@@ -564,9 +569,9 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	rr = httptest.NewRecorder()
 	app.Router().ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Equal(t, http.StatusSeeOther, rr.Code)
 
-	// Valid magic link
+	// NOTE: now send valid token to check if redirect worked correctly and if cookies are set properly
 	token = app.mailer.Calls[0].Arguments[1].(string)
 	assert.NotEmpty(t, token)
 
@@ -581,5 +586,5 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 
 	app.mailer.AssertExpectations(t)
 
-	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, http.StatusFound, rr.Code)
 }

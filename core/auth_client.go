@@ -20,7 +20,7 @@ func (c *AuthClient) CanLoginWithMagicLink() bool {
 
 // Redirects from the endpoint to the success frontend url provided by user
 func (c *AuthClient) SuccessMagicLinkRedirect(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, c.config.Session.MagicLinkSuccesfulRedirectURL, http.StatusSeeOther)
+	http.Redirect(w, r, c.config.Session.MagicLinkSuccesfulRedirectURL, http.StatusFound)
 }
 
 // Redirects from the endpoint to the failed frontend url provided by user
