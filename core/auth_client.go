@@ -37,6 +37,10 @@ func (c *AuthClient) CanLoginWithOAuth() bool {
 }
 
 func (c *AuthClient) SetupGoth() {
+	if !c.CanLoginWithOAuth() {
+		panic("OAuth providers are not configured. Please provide at least one OAuth provider in the AuthConfig.")
+	}
+
 	gothic.GetProviderName = func(r *http.Request) (string, error) {
 		provider := r.URL.Query().Get("provider")
 		if provider == "" {
