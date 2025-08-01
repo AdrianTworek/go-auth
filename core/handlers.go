@@ -540,11 +540,20 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 		}
 
 		tx, err := ac.store.Transaction.Begin()
+
+		defer func(tx *sqlx.Tx) {
+			if err != nil {
+				ac.store.Transaction.Rollback(tx)
+			}
+		}(tx)
+
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, gothUser.Email)
+
 		if err != nil {
 			if err == store.ErrNotFound {
 				// User does not exist, create a new one
