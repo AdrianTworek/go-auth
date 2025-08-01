@@ -17,9 +17,14 @@ type SessionConfig struct {
 	//
 	// Default: true
 	LoginAfterRegister bool
-	// FrontendRedirectURL is used when logging in using magic link, it declares where to redirect user after successful login.
+	// MagicLinkSuccesfulRedirectURL is used when logging in using magic link, when login was successful user will be redirected to this URL.
 	// It is required if magic link is used, otherwise magic link login will not work properly.
 	//
 	// Default: ""
-	FrontendRedirectURL string
+	MagicLinkSuccesfulRedirectURL string
+	// MagicLinkFailedRedirectURL is used when logging in using magic link, when login failed user will be redirected to this URL.
+	// It is required if magic link is used, otherwise magic link login will not work properly.
+	//
+	// Default: ""
+	MagicLinkFailedRedirectURL string
 }
