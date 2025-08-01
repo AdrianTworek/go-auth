@@ -5,6 +5,7 @@ import (
 
 	"github.com/AdrianTworek/go-auth/core"
 	"github.com/go-chi/chi/v5"
+	"github.com/markbates/goth/gothic"
 )
 
 type ChiParamExtractor struct {
@@ -16,12 +17,21 @@ func (c *ChiParamExtractor) GetParam(key string) string {
 }
 
 func InitAuth(ac *core.AuthClient, r *chi.Mux) {
+	if ac.CanLoginWithOAuth() {
+		ac.SetupGoth()
+	}
+
 	r.Route("/auth", func(r chi.Router) {
 		r.Post("/register", ac.RegisterHandler())
 		r.Post("/login", ac.LoginHandler())
 		r.Get("/verify/{token}", func(w http.ResponseWriter, r *http.Request) {
 			ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 		})
+
+		if ac.CanLoginWithOAuth() {
+			r.Get("/oauth", gothic.BeginAuthHandler)
+			r.Get("/oauth/callback", ac.OAuthCallbackHandler())
+		}
 
 		r.Route("/magic-link", func(r chi.Router) {
 			r.Post("/", ac.SendMagicLinkHandler())

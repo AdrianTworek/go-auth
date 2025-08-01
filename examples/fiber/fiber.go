@@ -6,22 +6,56 @@ import (
 
 	fiber_adapter "github.com/AdrianTworek/go-auth/adapters/fiber"
 	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/gofiber/fiber/v2"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/providers/github"
+	"github.com/markbates/goth/providers/google"
+	"github.com/spf13/viper"
 )
+
+func init() {
+	examples.SetupEnv()
+}
 
 func main() {
 	r := fiber.New()
 
 	ac, err := core.NewAuthClient(&core.AuthConfig{
-		Db: core.DatabaseConfig{
-			Dsn: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
+		Db: &core.DatabaseConfig{
+			Dsn: viper.GetString("DSN"),
 		},
-		Session: core.SessionConfig{
+		Session: &core.SessionConfig{
 			MagicLinkSuccesfulRedirectURL: "http://localhost:8080/front/success",
 			MagicLinkFailedRedirectURL:    "http://localhost:8080/front/failed",
 			LoginAfterRegister:            true,
 		},
+		OAuth: &core.OAuthConfig{
+			Providers: []goth.Provider{
+				google.New(
+					viper.GetString("GOOGLE_CLIENT_ID"),
+					viper.GetString("GOOGLE_CLIENT_SECRET"),
+					fmt.Sprintf(
+						"%s/auth/oauth/callback?provider=google",
+						viper.GetString("BASE_URL"),
+					),
+					"email",
+					"profile",
+				),
+				github.New(
+					viper.GetString("GITHUB_CLIENT_ID"),
+					viper.GetString("GITHUB_CLIENT_SECRET"),
+					fmt.Sprintf(
+						"%s/auth/oauth/callback?provider=github",
+						viper.GetString("BASE_URL"),
+					),
+					"email",
+					"profile",
+				),
+			},
+		},
 	})
+
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}

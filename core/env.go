@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/viper"
 )
 
+// Env holds all the environment variables needed for the application. This struct should be only used in test environments.
+// In library code all environmental variables should be passed as params to config like SessionSecret or DSN in database config.
 type Env struct {
 	BaseURL            string
 	Port               int
@@ -18,6 +20,7 @@ type Env struct {
 	GithubClientID     string
 }
 
+// Setup Env object with default values and read from .env file, this should be only used in test environments
 func NewEnv(isTest bool) (*Env, error) {
 	_, b, _, _ := runtime.Caller(0)
 	configPath := filepath.Join(filepath.Dir(b), "..", ".env")

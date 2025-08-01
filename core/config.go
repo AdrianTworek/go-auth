@@ -1,11 +1,22 @@
 package core
 
-import "github.com/AdrianTworek/go-auth/core/mailer"
+import (
+	"github.com/AdrianTworek/go-auth/core/mailer"
+	"github.com/markbates/goth"
+)
 
 type AuthConfig struct {
-	Db      DatabaseConfig
-	Session SessionConfig
-	Mailer  mailer.Mailer
+	Db            *DatabaseConfig
+	Session       *SessionConfig
+	OAuth         *OAuthConfig
+	Mailer        mailer.Mailer
+	BaseURL       string
+	SessionSecret string
+}
+
+type OAuthConfig struct {
+	// Goth provider objects that are used to setup goth authentication without any additional configuration.
+	Providers []goth.Provider
 }
 
 type DatabaseConfig struct {
