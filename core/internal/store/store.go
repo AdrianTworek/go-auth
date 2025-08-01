@@ -17,22 +17,22 @@ var (
 
 type Storage struct {
 	User interface {
-		Create(ctx context.Context, user *User, tx *sqlx.Tx) error
-		GetByID(ctx context.Context, id string, tx *sqlx.Tx) (*User, error)
-		GetByEmail(ctx context.Context, email string, tx *sqlx.Tx) (*User, error)
-		Update(ctx context.Context, user *User, tx *sqlx.Tx) (*User, error)
+		Create(ctx context.Context, tx *sqlx.Tx, user *User) error
+		GetByID(ctx context.Context, tx *sqlx.Tx, id string) (*User, error)
+		GetByEmail(ctx context.Context, tx *sqlx.Tx, email string) (*User, error)
+		Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User, error)
 	}
 	Session interface {
-		Create(ctx context.Context, session *Session, tx *sqlx.Tx) (token string, err error)
-		Validate(ctx context.Context, token string) (*Session, error)
-		Refresh(ctx context.Context, oldToken string) (string, error)
-		Delete(ctx context.Context, token string, tx *sqlx.Tx) error
-		DeleteForUser(ctx context.Context, userID string, tx *sqlx.Tx) error
+		Create(ctx context.Context, tx *sqlx.Tx, session *Session) (token string, err error)
+		Validate(ctx context.Context, tx *sqlx.Tx, token string) (*Session, error)
+		Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string) (string, error)
+		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
+		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
 	}
 	Verification interface {
-		Create(ctx context.Context, verification *Verification, tx *sqlx.Tx) (string, error)
-		Validate(ctx context.Context, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
-		Delete(ctx context.Context, token string, tx *sqlx.Tx) error
+		Create(ctx context.Context, tx *sqlx.Tx, verification *Verification) (string, error)
+		Validate(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
+		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 	}
 	Transaction interface {
 		Begin() (*sqlx.Tx, error)

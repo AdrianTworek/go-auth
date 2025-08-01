@@ -22,7 +22,7 @@ type SessionStore struct {
 	db *sqlx.DB
 }
 
-func (s *SessionStore) Create(ctx context.Context, session *Session, tx *sqlx.Tx) (string, error) {
+func (s *SessionStore) Create(ctx context.Context, tx *sqlx.Tx, session *Session) (string, error) {
 	query := `
 		INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent)
 		VALUES (:user_id, :token, :expires_at, :ip_address, :user_agent)
@@ -50,7 +50,7 @@ func (s *SessionStore) Create(ctx context.Context, session *Session, tx *sqlx.Tx
 	return token, nil
 }
 
-func (s *SessionStore) Validate(ctx context.Context, token string) (*Session, error) {
+func (s *SessionStore) Validate(ctx context.Context, tx *sqlx.Tx, token string) (*Session, error) {
 	query := `
 		SELECT * FROM sessions 
     WHERE token = $1 AND expires_at > NOW()
@@ -73,7 +73,7 @@ func (s *SessionStore) Validate(ctx context.Context, token string) (*Session, er
 	return session, nil
 }
 
-func (s *SessionStore) Delete(ctx context.Context, token string, tx *sqlx.Tx) error {
+func (s *SessionStore) Delete(ctx context.Context, tx *sqlx.Tx, token string) error {
 	query := `
 		DELETE FROM sessions WHERE token = $1
 	`
@@ -94,7 +94,7 @@ func (s *SessionStore) Delete(ctx context.Context, token string, tx *sqlx.Tx) er
 	return nil
 }
 
-func (s *SessionStore) Refresh(ctx context.Context, oldToken string) (string, error) {
+func (s *SessionStore) Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string) (string, error) {
 	query := `
 		UPDATE sessions
 		SET token = $1, expires_at = $2
@@ -117,7 +117,7 @@ func (s *SessionStore) Refresh(ctx context.Context, oldToken string) (string, er
 	return token, nil
 }
 
-func (s *SessionStore) DeleteForUser(ctx context.Context, userID string, tx *sqlx.Tx) error {
+func (s *SessionStore) DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error {
 	query := `
 		DELETE FROM sessions WHERE user_id = $1
 	`
