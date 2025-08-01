@@ -2,13 +2,12 @@ package core
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
-
-// TODO: Figure out how can a certain hook can prematurely respond
 
 type AuthEventType string
 
@@ -57,20 +56,65 @@ func NewHookStore(hooks HookMap) *HookStore {
 }
 
 // Trigger will trigger any hook that is set for that event type
-func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) error {
+// Returns a flag if endpoint should continue and error if error occurred
+// If flag is true endpoint should contnue if it is false it should return
+func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error) {
 	hooks := hs.hooks[event.Type]
 	if len(hooks) < 1 {
 		slog.Info("skipping hook", "reason", "no handlers found", "type", event.Type)
-		return nil
+		return true, nil
 	}
 	for _, hook := range hooks {
+
 		err := hook(ctx, event)
 		if err != nil {
+			var hookErr *HookError
+			if errors.As(err, &hookErr) {
+				writeJSONError(event.W, hookErr.Status, hookErr.Message)
+				return false, nil
+			}
+			var hookResponse *HookResponse
+			if errors.As(err, &hookResponse) {
+				writeJSONResponse(event.W, hookResponse.Status, hookResponse.Body)
+				return false, nil
+			}
 			// Endpoint should just return Internal Server Error for most part probably
 			// Maybe in the future hook could have type of error it returns or it could return
 			// some standarised http error, it could also respond and end the endpoint earlier
-			return err
+			return false, err
 		}
 	}
-	return nil
+	return true, nil
+}
+
+type HookError struct {
+	Message string
+	Status  int
+}
+
+func (he *HookError) Error() string {
+	return he.Message
+}
+
+func NewHookError(status int, m string) *HookError {
+	return &HookError{
+		Message: m,
+		Status:  status,
+	}
+}
+
+type HookResponse struct {
+	Body   any
+	Status int
+}
+
+func (hr *HookResponse) Error() string {
+	return "This is not an error this is used to prematurelly respond from endpoints using hooks"
+}
+
+func NewHookResponse(status int, body any) *HookResponse {
+	return &HookResponse{
+		Body:   body,
+		Status: status,
+	}
 }
