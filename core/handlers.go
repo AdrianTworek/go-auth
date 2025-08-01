@@ -8,6 +8,7 @@ import (
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 	"github.com/jmoiron/sqlx"
+	"github.com/markbates/goth/gothic"
 )
 
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
@@ -527,5 +528,90 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 		}
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Password reset successfully"})
+	}
+}
+
+func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		gothUser, err := gothic.CompleteUserAuth(w, r)
+		if err != nil {
+			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
+
+		tx, err := ac.store.Transaction.Begin()
+		user, err := ac.store.User.GetByEmail(r.Context(), gothUser.Email, nil)
+		if err != nil {
+			if err == store.ErrNotFound {
+				// User does not exist, create a new one
+				user = &store.User{
+					Email:         gothUser.Email,
+					AvatarURL:     auth.NewNullString(gothUser.AvatarURL),
+					AvatarSource:  auth.NewNullString("oauth"),
+					EmailVerified: true,
+					OAuthProvider: auth.NewNullString(gothUser.Provider),
+					OAuthID:       auth.NewNullString(gothUser.UserID),
+				}
+				if err = ac.store.User.Create(r.Context(), user, tx); err != nil {
+					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+
+				user, err = ac.store.User.GetByEmail(r.Context(), gothUser.Email, tx)
+				if err != nil {
+					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					return
+				}
+			} else {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		// User exists, update OAuth provider and ID
+		if !user.OAuthProvider.Valid || user.OAuthProvider.String != gothUser.Provider {
+			user.OAuthProvider = auth.NewNullString(gothUser.Provider)
+			user.OAuthID = auth.NewNullString(gothUser.UserID)
+			user.EmailVerified = true
+			user, err = ac.store.User.Update(r.Context(), user, tx)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		// Update avatar URL if it's from OAuth provider or not set
+		if !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
+			user.AvatarURL = auth.NewNullString(gothUser.AvatarURL)
+			user.AvatarSource = auth.NewNullString("oauth")
+			user, err = ac.store.User.Update(r.Context(), user, tx)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
+		token, err := ac.store.Session.Create(
+			r.Context(),
+			&store.Session{
+				UserID:    user.ID,
+				IPAddress: r.RemoteAddr,
+				UserAgent: r.UserAgent(),
+				ExpiresAt: time.Now().Add(24 * time.Hour),
+			},
+			tx,
+		)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		http.SetCookie(w, auth.NewSessionCookie(token))
+
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
 	}
 }

@@ -89,11 +89,14 @@ func (a *TestApp) Router() *chi.Mux {
 	r := chi.NewRouter()
 
 	ac, err := NewAuthClient(&AuthConfig{
-		Db: DatabaseConfig{
+		Db: &DatabaseConfig{
 			Dsn: a.env.DSN,
 		},
-		Mailer:  a.mailer,
-		Session: a.config.Session,
+		Mailer:        a.mailer,
+		Session:       a.config.Session,
+		OAuth:         a.config.OAuth,
+		BaseURL:       a.config.BaseURL,
+		SessionSecret: a.env.SessionSecret,
 	})
 
 	if err != nil {
@@ -253,7 +256,7 @@ func PopulateDB(ctx context.Context, db *sql.DB) error {
 	return nil
 }
 
-func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig) *AuthConfig {
+func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig, oauth *OAuthConfig) *AuthConfig {
 	if db == nil {
 		db = &DatabaseConfig{
 			Dsn: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
@@ -268,9 +271,12 @@ func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig) *AuthConfig {
 	}
 
 	return &AuthConfig{
-		Db:      *db,
-		Session: *s,
-		Mailer:  nil,
+		Db:            db,
+		Session:       s,
+		Mailer:        nil,
+		OAuth:         oauth,
+		BaseURL:       "http://localhost:6969",
+		SessionSecret: "test-secret",
 	}
 }
 
@@ -296,7 +302,7 @@ func SetupIntegration(t *testing.T, c *AuthConfig) (*TestApp, *pgContainer.Postg
 	}
 
 	if c == nil {
-		c = NewTestAuthConfig(nil, nil)
+		c = NewTestAuthConfig(nil, nil, nil)
 	}
 
 	app, err := NewTestApp(env, c)

@@ -147,7 +147,7 @@ func Test_Integration_RegisterUserSuccess(t *testing.T) {
 }
 
 func Test_Integration_DontCreateSessionAfterRegister(t *testing.T) {
-	c := NewTestAuthConfig(nil, &SessionConfig{LoginAfterRegister: false})
+	c := NewTestAuthConfig(nil, &SessionConfig{LoginAfterRegister: false}, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -498,11 +498,12 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 }
 
 func Test_Integration_SendMagicLink(t *testing.T) {
-	c := NewTestAuthConfig(nil, &SessionConfig{
+	sc := &SessionConfig{
 		MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
 		MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
 		LoginAfterRegister:            true,
-	})
+	}
+	c := NewTestAuthConfig(nil, sc, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
 
