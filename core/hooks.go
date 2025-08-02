@@ -55,9 +55,9 @@ func NewHookStore(hooks HookMap) *HookStore {
 	}
 }
 
-// Trigger will trigger any hook that is set for that event type
-// Returns a flag if endpoint should continue and error if error occurred
-// If flag is true endpoint should contnue if it is false it should return
+// Trigger will trigger any hook that is set for that event type.
+// If flag is true endpoint should contnue if it is false it should return.
+// Returns a flag if endpoint should continue and error if error occurred.
 func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error) {
 	hooks := hs.hooks[event.Type]
 	if len(hooks) < 1 {
@@ -78,15 +78,18 @@ func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error
 				writeJSONResponse(event.W, hookResponse.Status, hookResponse.Body)
 				return false, nil
 			}
-			// Endpoint should just return Internal Server Error for most part probably
-			// Maybe in the future hook could have type of error it returns or it could return
-			// some standarised http error, it could also respond and end the endpoint earlier
+			var hookRedirect *HookRedirect
+			if errors.As(err, &hookRedirect) {
+				http.Redirect(event.W, event.R, hookRedirect.URL, hookRedirect.Status)
+				return false, nil
+			}
 			return false, err
 		}
 	}
 	return true, nil
 }
 
+// HookError is used in hook functions to prematurelly respond from endpoints with error message
 type HookError struct {
 	Message string
 	Status  int
@@ -103,6 +106,7 @@ func NewHookError(status int, m string) *HookError {
 	}
 }
 
+// HookResponse is used in hook functions to prematurelly respond from endpoints with data
 type HookResponse struct {
 	Body   any
 	Status int
@@ -115,6 +119,23 @@ func (hr *HookResponse) Error() string {
 func NewHookResponse(status int, body any) *HookResponse {
 	return &HookResponse{
 		Body:   body,
+		Status: status,
+	}
+}
+
+// HookRedirect is used in hook functions to prematurelly redirect from endpoints
+type HookRedirect struct {
+	URL    string
+	Status int
+}
+
+func (hr *HookRedirect) Error() string {
+	return "This is not an error this is used to redirect from endpoints using hooks"
+}
+
+func NewHookRedirect(status int, url string) *HookRedirect {
+	return &HookRedirect{
+		URL:    url,
 		Status: status,
 	}
 }

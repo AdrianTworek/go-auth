@@ -73,7 +73,8 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	if config.Hooks != nil {
 		hookStore = NewHookStore(*config.Hooks)
 	} else {
-		hookStore = nil
+		// Create an empty hook store if not hooks are provided
+		hookStore = NewHookStore(HookMap{})
 	}
 
 	return &AuthClient{
