@@ -266,7 +266,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 
 		user, err := ac.store.User.GetByID(r.Context(), nil, sess.UserID)
 		if err != nil {
-			slog.Error("could not retrieve user from session", "casuse", err)
+			slog.Error("could not retrieve user from session", "cause", err)
 			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
 			return
 		}

@@ -56,8 +56,8 @@ func NewHookStore(hooks HookMap) *HookStore {
 }
 
 // Trigger will trigger any hook that is set for that event type.
-// If flag is true endpoint should contnue if it is false it should return.
 // Returns a flag if endpoint should continue and error if error occurred.
+// If flag is true endpoint should continue if it is false it should return.
 func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error) {
 	hooks := hs.hooks[event.Type]
 	if len(hooks) < 1 {
@@ -89,7 +89,7 @@ func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error
 	return true, nil
 }
 
-// HookError is used in hook functions to prematurelly respond from endpoints with error message
+// HookError is used in hook functions to prematurely respond from endpoints with error message
 type HookError struct {
 	Message string
 	Status  int
@@ -106,14 +106,14 @@ func NewHookError(status int, m string) *HookError {
 	}
 }
 
-// HookResponse is used in hook functions to prematurelly respond from endpoints with data
+// HookResponse is used in hook functions to prematurely respond from endpoints with data
 type HookResponse struct {
 	Body   any
 	Status int
 }
 
 func (hr *HookResponse) Error() string {
-	return "This is not an error this is used to prematurelly respond from endpoints using hooks"
+	return "This is not an error this is used to prematurely respond from endpoints using hooks"
 }
 
 func NewHookResponse(status int, body any) *HookResponse {
@@ -123,7 +123,7 @@ func NewHookResponse(status int, body any) *HookResponse {
 	}
 }
 
-// HookRedirect is used in hook functions to prematurelly redirect from endpoints
+// HookRedirect is used in hook functions to prematurely redirect from endpoints
 type HookRedirect struct {
 	URL    string
 	Status int
