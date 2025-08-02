@@ -42,6 +42,24 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			}
 		}(tx)
 
+		cont, err := ac.hookStore.Trigger(
+			r.Context(),
+			NewAuthEvent(
+				EventBeforeRegistration,
+				w,
+				r,
+				newUser,
+			),
+		)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if !cont {
+			return
+		}
+
 		err = ac.store.User.Create(r.Context(), tx, newUser)
 		if err != nil && err != store.ErrDuplicateEmail {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -107,6 +125,24 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			http.SetCookie(w, cookie)
 		}
 
+		cont, err = ac.hookStore.Trigger(
+			r.Context(),
+			NewAuthEvent(
+				EventAfterRegistration,
+				w,
+				r,
+				user,
+			),
+		)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if !cont {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusCreated, map[string]any{"message": "User registered successfully"})
 	}
 }
@@ -130,6 +166,24 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		var req loginRequest
 		if err := readAndValidateJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		cont, err := ac.hookStore.Trigger(
+			r.Context(),
+			NewAuthEvent(
+				EventBeforeLogin,
+				w,
+				r,
+				nil,
+			),
+		)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if !cont {
 			return
 		}
 
@@ -166,6 +220,24 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		cookie := auth.NewSessionCookie(token)
 		http.SetCookie(w, cookie)
 
+		cont, err = ac.hookStore.Trigger(
+			r.Context(),
+			NewAuthEvent(
+				EventAfterLogin,
+				w,
+				r,
+				user,
+			),
+		)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if !cont {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
 	}
 }
@@ -184,6 +256,40 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
+
+		sess, err := ac.store.Session.Validate(r.Context(), nil, token.Value)
+		if err != nil {
+			slog.Error("could not retrieve session", "cause", err)
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+
+		user, err := ac.store.User.GetByID(r.Context(), nil, sess.UserID)
+		if err != nil {
+			slog.Error("could not retrieve user from session", "cause", err)
+			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+			return
+		}
+
+		cont, err := ac.hookStore.Trigger(
+			r.Context(),
+			NewAuthEvent(
+				EventLogout,
+				w,
+				r,
+				user,
+			),
+		)
+
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+
+		if !cont {
+			return
+		}
+
 		err = ac.store.Session.Delete(r.Context(), nil, token.Value)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())

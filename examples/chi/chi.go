@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/AdrianTworek/go-auth/adapters/chi"
@@ -17,6 +19,11 @@ import (
 
 func init() {
 	examples.SetupEnv()
+}
+
+func afterLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("User logged in this is from the after login hook", "req", event.R)
+	return nil
 }
 
 func main() {
@@ -53,6 +60,13 @@ func main() {
 					"email",
 					"profile",
 				),
+			},
+		},
+		SessionSecret: viper.GetString("SESSION_SECRET"),
+		BaseURL:       "http://localhost:8080",
+		Hooks: &core.HookMap{
+			core.EventAfterLogin: core.HookList{
+				afterLogin,
 			},
 		},
 	})

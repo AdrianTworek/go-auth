@@ -13,8 +13,9 @@ import (
 )
 
 type AuthClient struct {
-	config *AuthConfig
-	store  *store.Storage
+	config    *AuthConfig
+	store     *store.Storage
+	hookStore *HookStore
 }
 
 // Checks if mailer is configured and magic link redirect urls are also provided
@@ -68,8 +69,17 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		config.Mailer = mailer.New()
 	}
 
+	var hookStore *HookStore
+	if config.Hooks != nil {
+		hookStore = NewHookStore(*config.Hooks)
+	} else {
+		// Create an empty hook store if no hooks are provided
+		hookStore = NewHookStore(HookMap{})
+	}
+
 	return &AuthClient{
-		config: config,
-		store:  store.NewStorage(db),
+		config:    config,
+		store:     store.NewStorage(db),
+		hookStore: hookStore,
 	}, nil
 }
