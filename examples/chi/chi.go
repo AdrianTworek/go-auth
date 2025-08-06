@@ -35,6 +35,10 @@ func afterLogin(ctx context.Context, event *core.AuthEvent) error {
 
 func emailVerfificationFailed(ctx context.Context, event *core.AuthEvent) error {
 	slog.Info("email verification failed")
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/failed",
+		Status: http.StatusFound,
+	}
 }
 
 func main() {
