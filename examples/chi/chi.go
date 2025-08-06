@@ -21,9 +21,24 @@ func init() {
 	examples.SetupEnv()
 }
 
-func afterLogin(ctx context.Context, event *core.AuthEvent) error {
-	slog.Info("User logged in this is from the after login hook", "req", event.R)
+func beforeLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("User logged in this is from the after login hook", "event", event)
 	return nil
+}
+
+func afterLogin(ctx context.Context, event *core.AuthEvent) error {
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/success",
+		Status: http.StatusFound,
+	}
+}
+
+func emailVerfificationFailed(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("email verification failed")
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/failed",
+		Status: http.StatusFound,
+	}
 }
 
 func main() {
@@ -65,11 +80,18 @@ func main() {
 		SessionSecret: viper.GetString("SESSION_SECRET"),
 		BaseURL:       "http://localhost:8080",
 		Hooks: &core.HookMap{
+			core.EventBeforeLogin: core.HookList{
+				beforeLogin,
+			},
 			core.EventAfterLogin: core.HookList{
 				afterLogin,
 			},
+			core.EventEmailVerificationFailed: core.HookList{
+				emailVerfificationFailed,
+			},
 		},
 	})
+
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}

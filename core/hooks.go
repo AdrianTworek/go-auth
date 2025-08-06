@@ -12,11 +12,18 @@ import (
 type AuthEventType string
 
 const (
-	EventBeforeLogin        AuthEventType = "before_login"
-	EventAfterLogin         AuthEventType = "after_login"
-	EventBeforeRegistration AuthEventType = "before_registration"
-	EventAfterRegistration  AuthEventType = "after_registration"
-	EventLogout             AuthEventType = "logout"
+	EventBeforeLogin               AuthEventType = "before_login"
+	EventAfterLogin                AuthEventType = "after_login"
+	EventBeforeRegistration        AuthEventType = "before_registration"
+	EventAfterRegistration         AuthEventType = "after_registration"
+	EventLogout                    AuthEventType = "logout"
+	EventOAuthCallback             AuthEventType = "oauth_callback"
+	EventOAuthSuccess              AuthEventType = "oauth_success"
+	EventPasswordResetSuccess      AuthEventType = "password_reset_success"
+	EventPasswordResetInitialized  AuthEventType = "password_reset_initialized"
+	EventEmailVerificationSuccess  AuthEventType = "email_verification_success"
+	EventEmailVerificationCallback AuthEventType = "email_verification_callback"
+	EventEmailVerificationFailed   AuthEventType = "email_verification_failed"
 )
 
 type AuthEvent struct {
