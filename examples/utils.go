@@ -13,7 +13,7 @@ func getEnvPath() string {
 }
 
 func SetupEnv() {
-	// This function can be used in all examples to ensure all variables are loaded and can be use using viper
+	// This function can be used in all examples to ensure all variables are loaded and are accessible with viper
 	viper.SetConfigFile(getEnvPath())
 	viper.SetDefault("BASE_URL", "http://localhost:8080")
 	viper.SetDefault("PORT", "8080")

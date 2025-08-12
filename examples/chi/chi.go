@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/AdrianTworek/go-auth/adapters/chi"
+	chi_adapter "github.com/AdrianTworek/go-auth/adapters/chi"
 	"github.com/AdrianTworek/go-auth/core"
 	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/go-chi/chi/v5"
@@ -72,8 +72,7 @@ func main() {
 						"%s/auth/oauth/callback?provider=github",
 						viper.GetString("BASE_URL"),
 					),
-					"email",
-					"profile",
+					"user:email",
 				),
 			},
 		},
