@@ -5,10 +5,10 @@ import (
 	"log"
 	"net/http"
 
-	gin_adapter "github.com/AdrianTworek/go-auth/adapters/gin"
+	echo_adapter "github.com/AdrianTworek/go-auth/adapters/echo"
 	"github.com/AdrianTworek/go-auth/core"
 	"github.com/AdrianTworek/go-auth/examples"
-	"github.com/gin-gonic/gin"
+	"github.com/labstack/echo/v4"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
@@ -20,7 +20,7 @@ func init() {
 }
 
 func main() {
-	r := gin.Default()
+	r := echo.New()
 
 	ac, err := core.NewAuthClient(&core.AuthConfig{
 		Db: &core.DatabaseConfig{
@@ -55,12 +55,13 @@ func main() {
 			},
 		},
 	})
+
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}
 
-	r.GET("/front/success", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html; charset=utf-8")
+	r.GET("/front/success", func(c echo.Context) error {
+		c.Set("Content-Type", "text/html; charset=utf-8")
 		html := `
 		<!DOCTYPE html>
 		<html>
@@ -72,11 +73,12 @@ func main() {
 			</body>
 		</html>
 		`
-		c.String(http.StatusOK, html)
+
+		return c.HTML(http.StatusOK, html)
 	})
 
-	r.GET("/front/failed", func(c *gin.Context) {
-		c.Header("Content-Type", "text/html; charset=utf-8")
+	r.GET("/front/failed", func(c echo.Context) error {
+		c.Set("Content-Type", "text/html; charset=utf-8")
 		html := `
 		<!DOCTYPE html>
 		<html>
@@ -88,11 +90,12 @@ func main() {
 			</body>
 		</html>
 		`
-		c.String(http.StatusOK, html)
+
+		return c.HTML(http.StatusOK, html)
 	})
 
-	gin_adapter.InitAuth(ac, r)
+	echo_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	http.ListenAndServe(":8080", r)
+	r.Start(":8080")
 }
