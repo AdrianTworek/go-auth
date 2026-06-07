@@ -6,31 +6,34 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v5
         with:
-          go-version: 1.24
+          go-version-file: go.mod
 
       - name: Verify dependencies
         run: go mod verify
 
       - name: Build
-        run: go build -o bin/main cmd/main.go
+        run: go build ./...
 
-      - name: Run go vet
-        run: go vet ./...
-
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck
-        run: staticcheck ./...
+      - name: Lint and format check
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.12.2
 
       - name: Run tests
-        run: go test -v -race ./...
+        run: go test -race -count=1 ./...
