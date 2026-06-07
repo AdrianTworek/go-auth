@@ -5,14 +5,15 @@ import (
 	"log"
 	"net/http"
 
-	gin_adapter "github.com/AdrianTworek/go-auth/adapters/gin"
-	"github.com/AdrianTworek/go-auth/core"
-	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/spf13/viper"
+
+	gin_adapter "github.com/AdrianTworek/go-auth/adapters/gin"
+	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 )
 
 func init() {
@@ -94,5 +95,5 @@ func main() {
 	gin_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	http.ListenAndServe(":8080", r)
+	log.Fatal(http.ListenAndServe(":8080", r))
 }

@@ -1,10 +1,11 @@
 package fiber_adapter
 
 import (
-	"github.com/AdrianTworek/go-auth/core"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/adaptor"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core"
 )
 
 type FiberParamExtractor struct {
@@ -48,5 +49,4 @@ func InitAuth(ac *core.AuthClient, r *fiber.App) {
 	protectedRouter.Use(adaptor.HTTPMiddleware(ac.AuthMiddleware()))
 	protectedRouter.Get("/me", adaptor.HTTPHandlerFunc(ac.GetMeHandler()))
 	protectedRouter.Post("/logout", adaptor.HTTPHandlerFunc(ac.LogoutHandler()))
-
 }

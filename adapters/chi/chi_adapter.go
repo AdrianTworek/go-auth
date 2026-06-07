@@ -3,9 +3,10 @@ package chi_adapter
 import (
 	"net/http"
 
-	"github.com/AdrianTworek/go-auth/core"
 	"github.com/go-chi/chi/v5"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core"
 )
 
 type ChiParamExtractor struct {

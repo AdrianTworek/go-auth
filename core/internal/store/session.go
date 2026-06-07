@@ -3,10 +3,12 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
 type Session struct {
@@ -62,12 +64,10 @@ func (s *SessionStore) Validate(ctx context.Context, tx *sqlx.Tx, token string) 
 	session := &Session{}
 	err := s.db.GetContext(ctx, session, query, token)
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
-		default:
-			return nil, err
 		}
+		return nil, err
 	}
 
 	return session, nil

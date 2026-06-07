@@ -5,8 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
 var (

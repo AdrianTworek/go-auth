@@ -7,14 +7,15 @@ import (
 	"log/slog"
 	"net/http"
 
-	chi_adapter "github.com/AdrianTworek/go-auth/adapters/chi"
-	"github.com/AdrianTworek/go-auth/core"
-	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/go-chi/chi/v5"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/spf13/viper"
+
+	chi_adapter "github.com/AdrianTworek/go-auth/adapters/chi"
+	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 )
 
 func init() {
@@ -90,7 +91,6 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}
@@ -108,7 +108,7 @@ func main() {
 			</body>
 		</html>
 		`
-		w.Write([]byte(html))
+		_, _ = w.Write([]byte(html))
 	})
 
 	r.HandleFunc("/front/failed", func(w http.ResponseWriter, r *http.Request) {
@@ -124,10 +124,10 @@ func main() {
 			</body>
 		</html>
 		`
-		w.Write([]byte(html))
+		_, _ = w.Write([]byte(html))
 	})
 	chi_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	http.ListenAndServe(":8080", r)
+	log.Fatal(http.ListenAndServe(":8080", r))
 }

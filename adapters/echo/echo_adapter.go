@@ -1,9 +1,10 @@
 package echo_adapter
 
 import (
-	"github.com/AdrianTworek/go-auth/core"
 	"github.com/labstack/echo/v4"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core"
 )
 
 type EchoParamExtractor struct {

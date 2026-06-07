@@ -5,13 +5,12 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
-var (
-	ErrDuplicateEmail = errors.New("duplicate email")
-)
+var ErrDuplicateEmail = errors.New("duplicate email")
 
 type User struct {
 	BaseEntity
@@ -97,12 +96,10 @@ func (s *UserStore) GetByID(ctx context.Context, tx *sqlx.Tx, id string) (*User,
 		err = tx.GetContext(ctx, user, query, id)
 	}
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
-		default:
-			return nil, err
 		}
+		return nil, err
 	}
 
 	return user, nil
@@ -125,12 +122,10 @@ func (s *UserStore) GetByEmail(ctx context.Context, tx *sqlx.Tx, email string) (
 		err = tx.GetContext(ctx, user, query, email)
 	}
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
-		default:
-			return nil, err
 		}
+		return nil, err
 	}
 
 	return user, nil
@@ -176,7 +171,7 @@ func (s *UserStore) Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User,
 	}
 
 	updated := &User{}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	for rows.Next() {
 		if err := rows.StructScan(updated); err != nil {
 			return nil, err

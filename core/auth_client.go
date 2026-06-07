@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/AdrianTworek/go-auth/core/internal/db"
-	"github.com/AdrianTworek/go-auth/core/internal/store"
-	"github.com/AdrianTworek/go-auth/core/mailer"
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core/internal/db"
+	"github.com/AdrianTworek/go-auth/core/internal/store"
+	"github.com/AdrianTworek/go-auth/core/mailer"
 )
 
 type AuthClient struct {

@@ -1,14 +1,16 @@
 package core
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
-	"github.com/AdrianTworek/go-auth/core/internal/store"
 	"github.com/jmoiron/sqlx"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
@@ -38,7 +40,9 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
@@ -61,12 +65,12 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 
 		err = ac.store.User.Create(r.Context(), tx, newUser)
-		if err != nil && err != store.ErrDuplicateEmail {
+		if err != nil && !errors.Is(err, store.ErrDuplicateEmail) {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		if err != nil && err == store.ErrDuplicateEmail {
+		if err != nil && errors.Is(err, store.ErrDuplicateEmail) {
 			writeJSONError(w, http.StatusBadRequest, "Email already taken")
 			return
 		}
@@ -188,11 +192,11 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		}
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
-		if err != nil && err != store.ErrNotFound {
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if err != nil && err == store.ErrNotFound {
+		if err != nil && errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
@@ -280,7 +284,6 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 				user,
 			),
 		)
-
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
@@ -373,7 +376,9 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
@@ -456,7 +461,9 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
@@ -489,7 +496,6 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 }
 
 func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) http.HandlerFunc {
-
 	return func(w http.ResponseWriter, r *http.Request) {
 		if !ac.CanLoginWithMagicLink() {
 			// NOTE: this should not happen because mail should not be sent
@@ -527,15 +533,16 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, verificationToken.Email.String)
-
 		if err != nil {
 			// User does not exist, register the user with the email passed in the query string
-			if err == store.ErrNotFound {
+			if errors.Is(err, store.ErrNotFound) {
 				user = store.NewUser(
 					verificationToken.Email.String,
 					true,
@@ -628,10 +635,10 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 		}
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
-		if err != nil && err != store.ErrNotFound {
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 		}
-		if err != nil && err == store.ErrNotFound {
+		if err != nil && errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusBadRequest, "User not found")
 			return
 		}
@@ -639,7 +646,9 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 		tx, err := ac.store.Transaction.Begin()
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
@@ -717,7 +726,6 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 		}
 
 		tx, err := ac.store.Transaction.Begin()
-
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Internal server error")
 			return
@@ -725,11 +733,16 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
-				ac.store.Transaction.Rollback(tx)
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
 			}
 		}(tx)
 
-		user.Password.Set(req.Password)
+		if err = user.Password.Set(req.Password); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Failed to set password")
+			return
+		}
 		if _, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to update password")
 			return
@@ -788,9 +801,8 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 		}(tx)
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, gothUser.Email)
-
 		if err != nil {
-			if err == store.ErrNotFound {
+			if errors.Is(err, store.ErrNotFound) {
 				// User does not exist, create a new one
 				user = &store.User{
 					Email:         gothUser.Email,

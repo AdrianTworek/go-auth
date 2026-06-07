@@ -1,0 +1,54 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # Start from the default set (errcheck, govet, ineffassign, staticcheck, unused)
+  default: standard
+  enable:
+    - bodyclose      # checks HTTP response bodies are closed
+    - errorlint      # correct error wrapping / comparison (errors.Is/As)
+    - gocritic       # opinionated checks for bugs, performance, style
+    - gosec          # security-focused checks (valuable for an auth service)
+    - misspell       # finds misspelled English words in comments
+    - nilerr         # finds "return nil" when err is non-nil
+    - revive         # fast, configurable golint replacement
+    - unconvert      # removes unnecessary type conversions
+    - unparam        # reports unused function parameters
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true   # don't require doc comments on every exported symbol
+
+  exclusions:
+    generated: lax
+    rules:
+      # Relax noisy checks in tests
+      - path: _test\.go
+        linters:
+          - bodyclose
+          - errcheck
+          - gosec
+          - unparam
+      # Migrations / generated SQL helpers tend to trip gosec on string building
+      - path: cmd/migrate/
+        linters:
+          - gosec
+      # Examples are illustrative demos, not production code (no server timeouts, etc.)
+      - path: examples/
+        linters:
+          - gosec
+
+formatters:
+  enable:
+    - gofumpt        # stricter superset of gofmt
+    - goimports      # formats + groups imports
+  settings:
+    gofumpt:
+      extra-rules: true
+    goimports:
+      local-prefixes:
+        - github.com/AdrianTworek/go-auth

@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"log"
 
-	fiber_adapter "github.com/AdrianTworek/go-auth/adapters/fiber"
-	"github.com/AdrianTworek/go-auth/core"
-	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/gofiber/fiber/v2"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/spf13/viper"
+
+	fiber_adapter "github.com/AdrianTworek/go-auth/adapters/fiber"
+	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 )
 
 func init() {
@@ -54,7 +55,6 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}
@@ -96,5 +96,5 @@ func main() {
 	fiber_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	r.Listen(":8080")
+	log.Fatal(r.Listen(":8080"))
 }
