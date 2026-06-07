@@ -1,6 +1,6 @@
 module github.com/AdrianTworek/go-auth
 
-go 1.24.0
+go 1.26.4
 
 require (
 	github.com/gin-gonic/gin v1.10.0
