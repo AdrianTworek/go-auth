@@ -3,15 +3,15 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
-var (
-	TokenDuration = 5 * time.Minute
-)
+var TokenDuration = 5 * time.Minute
 
 type Verification struct {
 	ID        string                  `json:"id" db:"id"`
@@ -83,12 +83,10 @@ func (s *VerificationStore) Validate(ctx context.Context, tx *sqlx.Tx, tokenStr 
 	token := NewVerification(intent, nil, nil)
 	err := s.db.GetContext(ctx, token, query, tokenStr, intent)
 	if err != nil {
-		switch err {
-		case sql.ErrNoRows:
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
-		default:
-			return nil, err
 		}
+		return nil, err
 	}
 
 	return token, nil

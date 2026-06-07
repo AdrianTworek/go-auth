@@ -5,14 +5,15 @@ import (
 	"log"
 	"net/http"
 
-	echo_adapter "github.com/AdrianTworek/go-auth/adapters/echo"
-	"github.com/AdrianTworek/go-auth/core"
-	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/labstack/echo/v4"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/spf13/viper"
+
+	echo_adapter "github.com/AdrianTworek/go-auth/adapters/echo"
+	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 )
 
 func init() {
@@ -55,7 +56,6 @@ func main() {
 			},
 		},
 	})
-
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}
@@ -97,5 +97,5 @@ func main() {
 	echo_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	r.Start(":8080")
+	log.Fatal(r.Start(":8080"))
 }

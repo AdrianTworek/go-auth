@@ -12,9 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
-	"github.com/AdrianTworek/go-auth/core/internal/db"
-	"github.com/AdrianTworek/go-auth/core/internal/store"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/postgres"
@@ -23,6 +20,10 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	pgContainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
+	"github.com/AdrianTworek/go-auth/core/internal/db"
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 type MockMailer struct {
@@ -98,7 +99,6 @@ func (a *TestApp) Router() *chi.Mux {
 		BaseURL:       a.config.BaseURL,
 		SessionSecret: a.env.SessionSecret,
 	})
-
 	if err != nil {
 		return nil
 	}
@@ -170,7 +170,8 @@ func CreateTestPostgres(ctx context.Context) (*sql.DB, *pgContainer.PostgresCont
 	dbPassword := "postgres"
 	dbName := "postgres"
 
-	ctr, err := pgContainer.Run(ctx, "postgres:17",
+	ctr, err := pgContainer.Run(
+		ctx, "postgres:17",
 		pgContainer.WithDatabase(dbName),
 		pgContainer.WithUsername(dbUser),
 		pgContainer.WithPassword(dbPassword),
@@ -244,7 +245,8 @@ func PopulateDB(ctx context.Context, db *sql.DB) error {
 	VALUES ($1, $2, $3), ($4, $5, $6), ($7, $8, $9)
 `
 
-	_, err := db.ExecContext(ctx, query,
+	_, err := db.ExecContext(
+		ctx, query,
 		TestUserData[DefaultUser].Email, defaultUserPassword, TestUserData[DefaultUser].EmailVerified,
 		TestUserData[UnverifiedUser].Email, unverifiedUserPassword, TestUserData[UnverifiedUser].EmailVerified,
 		TestUserData[NoPasswordUser].Email, noPasswordUserPassword, TestUserData[NoPasswordUser].EmailVerified,
@@ -258,6 +260,7 @@ func PopulateDB(ctx context.Context, db *sql.DB) error {
 
 func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig, oauth *OAuthConfig) *AuthConfig {
 	if db == nil {
+		// #nosec G101 -- local development/test DSN, not a real credential
 		db = &DatabaseConfig{
 			Dsn: "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable",
 		}

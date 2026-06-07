@@ -2,10 +2,12 @@ package core
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
-	"github.com/AdrianTworek/go-auth/core/internal/store"
 	"github.com/go-playground/validator/v10"
+
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 // JSON
@@ -43,20 +45,24 @@ func readJSON(w http.ResponseWriter, r *http.Request, data any) error {
 	return decoder.Decode(data)
 }
 
-func writeJSONError(w http.ResponseWriter, status int, message string) error {
+func writeJSONError(w http.ResponseWriter, status int, message string) {
 	type envelope struct {
 		Error string `json:"error"`
 	}
 
-	return writeJSON(w, status, &envelope{Error: message})
+	if err := writeJSON(w, status, &envelope{Error: message}); err != nil {
+		slog.Error("failed to write JSON error response", "error", err)
+	}
 }
 
-func writeJSONResponse(w http.ResponseWriter, status int, data any) error {
+func writeJSONResponse(w http.ResponseWriter, status int, data any) {
 	type envelope struct {
 		Data any `json:"data"`
 	}
 
-	return writeJSON(w, status, &envelope{Data: data})
+	if err := writeJSON(w, status, &envelope{Data: data}); err != nil {
+		slog.Error("failed to write JSON response", "error", err)
+	}
 }
 
 // Context

@@ -1,8 +1,9 @@
 package core
 
 import (
-	"github.com/AdrianTworek/go-auth/core/mailer"
 	"github.com/markbates/goth"
+
+	"github.com/AdrianTworek/go-auth/core/mailer"
 )
 
 type AuthConfig struct {

@@ -1,10 +1,11 @@
 package gin_adapter
 
 import (
-	"github.com/AdrianTworek/go-auth/core"
 	"github.com/gin-gonic/gin"
 	adapter "github.com/gwatts/gin-adapter"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core"
 )
 
 type GinParamExtractor struct {
@@ -23,9 +24,9 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	publicRouter := r.Group("/auth")
 	publicRouter.POST("/register", gin.WrapH(ac.RegisterHandler()))
 	publicRouter.POST("/login", gin.WrapH(ac.LoginHandler()))
-	publicRouter.GET("/verify/:token", (func(c *gin.Context) {
+	publicRouter.GET("/verify/:token", func(c *gin.Context) {
 		ac.VerifyEmailHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
-	}))
+	})
 
 	if ac.CanLoginWithOAuth() {
 		publicRouter.GET("/oauth", gin.WrapF(gothic.BeginAuthHandler))
