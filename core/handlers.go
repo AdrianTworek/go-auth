@@ -119,9 +119,10 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		err = ac.config.Mailer.SendVerificationEmail(user.Email, verificationToken)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+		// The account is already committed at this point, so a failed verification
+		// email is non-fatal: log it and let the user re-request verification.
+		if err = ac.config.Mailer.SendVerificationEmail(user.Email, verificationToken); err != nil {
+			slog.Error("failed to send verification email", "error", err)
 		}
 
 		if token != "" && ac.config.Session.LoginAfterRegister {
@@ -248,7 +249,11 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 
 func (ac *AuthClient) GetMeHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		user := getUserFromContext(r)
+		user, ok := getUserFromContext(r)
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
 		writeJSONResponse(w, http.StatusOK, map[string]*store.User{"user": user})
 	}
 }
@@ -635,15 +640,20 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 		}
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				writeJSONError(w, http.StatusBadRequest, "User not found")
+				return
+			}
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
-		}
-		if err != nil && errors.Is(err, store.ErrNotFound) {
-			writeJSONError(w, http.StatusBadRequest, "User not found")
 			return
 		}
 
 		tx, err := ac.store.Transaction.Begin()
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 		defer func(tx *sqlx.Tx) {
 			if err != nil {
 				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {

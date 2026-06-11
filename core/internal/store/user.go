@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
@@ -68,12 +69,13 @@ func (s *UserStore) Create(ctx context.Context, tx *sqlx.Tx, user *User) error {
 	}
 
 	if err != nil {
-		switch err.Error() {
-		case `pq: duplicate key value violates unique constraint "users_email_key"`:
+		// 23505 = unique_violation; users has a single unique constraint (email),
+		// so any unique violation on insert is a duplicate email.
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 			return ErrDuplicateEmail
-		default:
-			return err
 		}
+		return err
 	}
 
 	return nil

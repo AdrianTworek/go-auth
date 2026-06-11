@@ -70,6 +70,7 @@ type ctxKey string
 
 const ctxUserKey = ctxKey("user")
 
-func getUserFromContext(r *http.Request) *store.User {
-	return r.Context().Value(ctxUserKey).(*store.User)
+func getUserFromContext(r *http.Request) (*store.User, bool) {
+	user, ok := r.Context().Value(ctxUserKey).(*store.User)
+	return user, ok
 }
