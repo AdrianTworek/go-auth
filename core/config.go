@@ -1,10 +1,18 @@
 package core
 
 import (
+	"net/http"
+
 	"github.com/markbates/goth"
 
 	"github.com/AdrianTworek/go-auth/core/mailer"
 )
+
+// Ptr returns a pointer to v. It's a convenience for setting optional pointer
+// config fields from a literal, e.g. CookieSecure: core.Ptr(false).
+func Ptr[T any](v T) *T {
+	return &v
+}
 
 type AuthConfig struct {
 	Db            *DatabaseConfig
@@ -40,4 +48,23 @@ type SessionConfig struct {
 	//
 	// Default: ""
 	MagicLinkFailedRedirectURL string
+	// CookieSecure controls the Secure attribute on the session cookie. When nil it
+	// defaults to true; set it to a pointer to false only for local HTTP development.
+	//
+	// Default: true
+	CookieSecure *bool
+	// CookieSameSite controls the SameSite attribute on the session cookie. When unset
+	// (zero value) it defaults to http.SameSiteLaxMode.
+	//
+	// Default: Lax
+	CookieSameSite http.SameSite
+	// CookieDomain sets the Domain attribute on the session cookie. Empty produces a
+	// host-only cookie.
+	//
+	// Default: ""
+	CookieDomain string
+	// CookieName overrides the session cookie name.
+	//
+	// Default: "session"
+	CookieName string
 }

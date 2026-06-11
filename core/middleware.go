@@ -12,7 +12,7 @@ import (
 func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			token, err := r.Cookie("session")
+			token, err := r.Cookie(ac.cookieName())
 			if err != nil {
 				writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 				return
@@ -33,7 +33,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 						return
 					}
 
-					http.SetCookie(w, auth.NewSessionCookie(newToken))
+					http.SetCookie(w, ac.newSessionCookie(newToken))
 				}
 			}
 

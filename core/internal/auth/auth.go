@@ -158,24 +158,32 @@ func GenerateSecureToken(n int) (string, error) {
 	return base64.URLEncoding.EncodeToString(token), nil
 }
 
-func baseCookie(token string, expiresAt time.Time) *http.Cookie {
-	// #nosec G124 -- Secure is intentionally false to support local HTTP development; enable it in production (see TODO)
+// CookieOptions configures the security-relevant attributes of the session cookie.
+type CookieOptions struct {
+	Name     string
+	Domain   string
+	Secure   bool
+	SameSite http.SameSite
+}
+
+func baseCookie(token string, expiresAt time.Time, opts CookieOptions) *http.Cookie {
+	// #nosec G124 -- Secure is configurable via SessionConfig.CookieSecure and defaults to true; gosec can't prove the value through the variable
 	return &http.Cookie{
 		HttpOnly: true,
-		// TODO: Set to true when running in the production environment and using HTTPS
-		Secure:   false,
-		SameSite: http.SameSiteLaxMode,
+		Secure:   opts.Secure,
+		SameSite: opts.SameSite,
+		Domain:   opts.Domain,
 		Value:    token,
 		Expires:  expiresAt,
-		Name:     "session",
+		Name:     opts.Name,
 		Path:     "/",
 	}
 }
 
-func NewSessionCookie(token string) *http.Cookie {
-	return baseCookie(token, time.Now().Add(SessionDuration))
+func NewSessionCookie(token string, opts CookieOptions) *http.Cookie {
+	return baseCookie(token, time.Now().Add(SessionDuration), opts)
 }
 
-func DeleteSessionCookie() *http.Cookie {
-	return baseCookie("", time.Now().Add(-time.Hour))
+func DeleteSessionCookie(opts CookieOptions) *http.Cookie {
+	return baseCookie("", time.Now().Add(-time.Hour), opts)
 }

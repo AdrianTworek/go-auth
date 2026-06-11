@@ -53,6 +53,9 @@ func main() {
 			MagicLinkSuccesfulRedirectURL: "http://localhost:8080/front/success",
 			MagicLinkFailedRedirectURL:    "http://localhost:8080/front/failed",
 			LoginAfterRegister:            true,
+			// This example runs over plain HTTP, so disable Secure to let the
+			// browser send the session cookie. Remove this in production (HTTPS).
+			CookieSecure: core.Ptr(false),
 		},
 		OAuth: &core.OAuthConfig{
 			Providers: []goth.Provider{

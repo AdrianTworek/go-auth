@@ -126,7 +126,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 
 		if token != "" && ac.config.Session.LoginAfterRegister {
-			cookie := auth.NewSessionCookie(token)
+			cookie := ac.newSessionCookie(token)
 			http.SetCookie(w, cookie)
 		}
 
@@ -159,7 +159,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
-		sessCookie, err := r.Cookie("session")
+		sessCookie, err := r.Cookie(ac.cookieName())
 		if err == nil {
 			_, err := ac.store.Session.Validate(r.Context(), nil, sessCookie.Value)
 			if err == nil {
@@ -222,7 +222,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		cookie := auth.NewSessionCookie(token)
+		cookie := ac.newSessionCookie(token)
 		http.SetCookie(w, cookie)
 
 		cont, err = ac.hookStore.Trigger(
@@ -260,7 +260,7 @@ func (ac *AuthClient) GetMeHandler() http.HandlerFunc {
 
 func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := r.Cookie("session")
+		token, err := r.Cookie(ac.cookieName())
 		if err != nil {
 			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
@@ -304,7 +304,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 			return
 		}
 
-		cookie := auth.DeleteSessionCookie()
+		cookie := ac.deleteSessionCookie()
 		http.SetCookie(w, cookie)
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged out successfully"})
@@ -442,7 +442,7 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
 			return
 		}
-		sessionCookie, err := r.Cookie("session")
+		sessionCookie, err := r.Cookie(ac.cookieName())
 		if err == nil {
 			_, err := ac.store.Session.Validate(r.Context(), nil, sessionCookie.Value)
 			if err == nil {
@@ -620,7 +620,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			return
 		}
 
-		cookie := auth.NewSessionCookie(sessionToken)
+		cookie := ac.newSessionCookie(sessionToken)
 		http.SetCookie(w, cookie)
 
 		ac.SuccessMagicLinkRedirect(w, r)
@@ -905,7 +905,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			return
 		}
 
-		http.SetCookie(w, auth.NewSessionCookie(token))
+		http.SetCookie(w, ac.newSessionCookie(token))
 
 		cont, err = ac.hookStore.Trigger(
 			r.Context(),

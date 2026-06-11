@@ -8,15 +8,17 @@ import (
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/gothic"
 
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/db"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 	"github.com/AdrianTworek/go-auth/core/mailer"
 )
 
 type AuthClient struct {
-	config    *AuthConfig
-	store     *store.Storage
-	hookStore *HookStore
+	config     *AuthConfig
+	store      *store.Storage
+	hookStore  *HookStore
+	cookieOpts auth.CookieOptions
 }
 
 // Checks if mailer is configured and magic link redirect urls are also provided
@@ -59,7 +61,42 @@ func (c *AuthClient) SetupGoth() {
 	)
 }
 
+// resolveCookieOptions builds the session cookie options from the session config,
+// applying secure-by-default values for anything the consumer left unset.
+func resolveCookieOptions(s *SessionConfig) auth.CookieOptions {
+	opts := auth.CookieOptions{
+		Name:     "session",
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	if s == nil {
+		return opts
+	}
+	if s.CookieName != "" {
+		opts.Name = s.CookieName
+	}
+	if s.CookieSecure != nil {
+		opts.Secure = *s.CookieSecure
+	}
+	if s.CookieSameSite != 0 {
+		opts.SameSite = s.CookieSameSite
+	}
+	opts.Domain = s.CookieDomain
+	return opts
+}
+
 func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
+	// Default the session config so cookie/option resolution is always safe.
+	if config.Session == nil {
+		config.Session = &SessionConfig{}
+	}
+
+	// SessionSecret is the gothic OAuth-state cookie key; require a strong value
+	// when OAuth is enabled. Validate before opening any resources.
+	if config.OAuth != nil && len(config.OAuth.Providers) > 0 && len(config.SessionSecret) < 32 {
+		return nil, fmt.Errorf("SessionSecret must be at least 32 bytes when OAuth is enabled")
+	}
+
 	db, err := db.NewPostgres(config.Db.Dsn)
 	if err != nil {
 		return nil, err
@@ -79,8 +116,21 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	}
 
 	return &AuthClient{
-		config:    config,
-		store:     store.NewStorage(db),
-		hookStore: hookStore,
+		config:     config,
+		store:      store.NewStorage(db),
+		hookStore:  hookStore,
+		cookieOpts: resolveCookieOptions(config.Session),
 	}, nil
+}
+
+func (ac *AuthClient) newSessionCookie(token string) *http.Cookie {
+	return auth.NewSessionCookie(token, ac.cookieOpts)
+}
+
+func (ac *AuthClient) deleteSessionCookie() *http.Cookie {
+	return auth.DeleteSessionCookie(ac.cookieOpts)
+}
+
+func (ac *AuthClient) cookieName() string {
+	return ac.cookieOpts.Name
 }
