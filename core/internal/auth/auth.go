@@ -146,6 +146,26 @@ func (p *Hashed) Compare(plainText string) bool {
 	return bcrypt.CompareHashAndPassword(*p, []byte(plainText)) == nil
 }
 
+// dummyPasswordHash is a valid bcrypt hash (at the same cost as real passwords)
+// used solely to spend comparable CPU time on the user-not-found login path.
+var dummyPasswordHash = mustGenerateDummyHash()
+
+func mustGenerateDummyHash() []byte {
+	hash, err := bcrypt.GenerateFromPassword([]byte("timing-equalization-password"), bcrypt.DefaultCost)
+	if err != nil {
+		// Unreachable for a short, fixed password at the default cost.
+		panic(err)
+	}
+	return hash
+}
+
+// DummyCompare performs a throwaway bcrypt comparison so that authentication
+// takes a similar amount of time whether or not the user exists, mitigating
+// user enumeration via response timing.
+func DummyCompare(password string) {
+	_ = bcrypt.CompareHashAndPassword(dummyPasswordHash, []byte(password))
+}
+
 func GenerateSecureToken(n int) (string, error) {
 	if n <= 0 {
 		return "", errors.New("token length must be greater than 0")

@@ -361,8 +361,9 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	// A malformed email fails request validation.
 	body := map[string]string{
-		"email": "invalid_email@example.com",
+		"email": "not-an-email",
 	}
 	json, err := json.Marshal(body)
 	assert.NoError(t, err)
@@ -377,6 +378,27 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 	app.Router().ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric verifies that an
+// unregistered (but well-formed) email gets the same generic 200 as a registered
+// one, so the response can't be used to enumerate accounts.
+func Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	body, err := json.Marshal(map[string]string{"email": "does_not_exist@example.com"})
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, genericResetMessage, resp["data"].(map[string]any)["message"])
 }
 
 func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {

@@ -65,6 +65,14 @@ func writeJSONResponse(w http.ResponseWriter, status int, data any) {
 	}
 }
 
+// serverError logs the underlying error with request context and returns a
+// generic 500 to the client, so internal details (DB/driver errors, etc.) are
+// never leaked in the response body.
+func serverError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+	writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
+}
+
 // Context
 type ctxKey string
 

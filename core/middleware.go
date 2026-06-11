@@ -39,7 +39,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 
 			user, err := ac.store.User.GetByID(r.Context(), nil, session.UserID)
 			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				serverError(w, r, err)
 				return
 			}
 

@@ -13,6 +13,10 @@ import (
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
+// genericResetMessage is returned by the send-reset endpoint whether or
+// not the email is registered, so the response never reveals account existence.
+const genericResetMessage = "If an account with that email exists, a password reset link has been sent."
+
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 	type registerRequest struct {
 		Email           string `json:"email" validate:"required,min=3,max=255,email"`
@@ -29,13 +33,13 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 		newUser := store.NewUser(req.Email, false, nil, nil, nil, nil)
 		if err := newUser.Password.Set(req.Password); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		defer func(tx *sqlx.Tx) {
@@ -56,7 +60,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -66,7 +70,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 		err = ac.store.User.Create(r.Context(), tx, newUser)
 		if err != nil && !errors.Is(err, store.ErrDuplicateEmail) {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -77,7 +81,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 		user, err := ac.store.User.GetByEmail(r.Context(), tx, req.Email)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -94,7 +98,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 				},
 			)
 			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				serverError(w, r, err)
 				return
 			}
 		}
@@ -109,13 +113,13 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		err = ac.store.Transaction.Commit(tx)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -140,7 +144,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -184,7 +188,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -193,11 +197,14 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		}
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-		if err != nil && errors.Is(err, store.ErrNotFound) {
+		if err != nil {
+			if !errors.Is(err, store.ErrNotFound) {
+				serverError(w, r, err)
+				return
+			}
+			// User not found: spend comparable time on a throwaway bcrypt compare so
+			// the response time matches the wrong-password path (anti-enumeration).
+			auth.DummyCompare(req.Password)
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
@@ -218,7 +225,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			},
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -235,7 +242,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -290,7 +297,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -300,7 +307,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 
 		err = ac.store.Session.Delete(r.Context(), nil, token.Value)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -347,7 +354,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		)
 		if err != nil {
 			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if !cont {
@@ -357,7 +364,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
 			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -385,7 +392,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
 		if err != nil {
 			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -393,14 +400,14 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		_, err = ac.store.User.Update(r.Context(), tx, user)
 		if err != nil {
 			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		err = ac.store.Transaction.Commit(tx)
 		if err != nil {
 			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -414,7 +421,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if !cont {
@@ -455,7 +462,7 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -477,17 +484,17 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		if err = ac.config.Mailer.SendMagicLinkEmail(req.Email, verificationToken); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		if err = ac.store.Transaction.Commit(tx); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -633,16 +640,17 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
-				writeJSONError(w, http.StatusBadRequest, "User not found")
+				// Don't reveal whether the email is registered.
+				writeJSONResponse(w, http.StatusOK, map[string]any{"message": genericResetMessage})
 				return
 			}
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		defer func(tx *sqlx.Tx) {
@@ -658,7 +666,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			NewAuthEvent(EventPasswordResetInitialized, w, r, user),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if !cont {
@@ -675,20 +683,20 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
 		if err = ac.config.Mailer.SendPasswordResetEmail(user.Email, verificationToken); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if err = ac.store.Transaction.Commit(tx); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
-		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Password reset link sent"})
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": genericResetMessage})
 	}
 }
 
@@ -772,7 +780,7 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			NewAuthEvent(EventPasswordResetSuccess, w, r, user),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if !cont {
@@ -787,13 +795,14 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		gothUser, err := gothic.CompleteUserAuth(w, r)
 		if err != nil {
-			writeJSONError(w, http.StatusUnauthorized, err.Error())
+			slog.Error("oauth completion failed", "error", err)
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
 			return
 		}
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -823,7 +832,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 					NewAuthEvent(EventBeforeRegistration, w, r, user),
 				)
 				if err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					serverError(w, r, err)
 					return
 				}
 				if !cont {
@@ -831,13 +840,13 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 				}
 
 				if err = ac.store.User.Create(r.Context(), tx, user); err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					serverError(w, r, err)
 					return
 				}
 
 				user, err = ac.store.User.GetByEmail(r.Context(), tx, gothUser.Email)
 				if err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					serverError(w, r, err)
 					return
 				}
 
@@ -846,14 +855,14 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 					NewAuthEvent(EventAfterRegistration, w, r, user),
 				)
 				if err != nil {
-					writeJSONError(w, http.StatusInternalServerError, err.Error())
+					serverError(w, r, err)
 				}
 				if !cont {
 					return
 				}
 
 			} else {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				serverError(w, r, err)
 				return
 			}
 		}
@@ -865,7 +874,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			user.EmailVerified = true
 			user, err = ac.store.User.Update(r.Context(), tx, user)
 			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				serverError(w, r, err)
 				return
 			}
 		}
@@ -876,7 +885,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			user.AvatarSource = auth.NewNullString("oauth")
 			user, err = ac.store.User.Update(r.Context(), tx, user)
 			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, err.Error())
+				serverError(w, r, err)
 				return
 			}
 		}
@@ -892,11 +901,11 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			},
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if err = tx.Commit(); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 
@@ -907,7 +916,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			NewAuthEvent(EventOAuthSuccess, w, r, user),
 		)
 		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
+			serverError(w, r, err)
 			return
 		}
 		if !cont {
