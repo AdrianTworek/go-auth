@@ -589,3 +589,114 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 
 	assert.Equal(t, http.StatusFound, rr.Code)
 }
+
+// Test_Integration_PasswordResetTokenIsSingleUse verifies that a verification
+// token is consumed atomically: once a reset succeeds, the same token cannot be
+// replayed, and the rejected attempt has no side effects.
+func Test_Integration_PasswordResetTokenIsSingleUse(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := "single_use@example.com"
+	app.mailer.On("SendVerificationEmail", mock.Anything, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordResetEmail", userEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordChangedEmail", userEmail).Return(nil)
+
+	helper := newTestHelper(t, app)
+	user, _ := helper.CreateUser(userEmail, "Password123!")
+
+	// Request a reset link and grab the emailed token.
+	body, err := json.Marshal(map[string]string{"email": user.Email})
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	token := app.mailer.Calls[1].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	completeReset := func(newPassword string) *httptest.ResponseRecorder {
+		b, err := json.Marshal(map[string]string{
+			"password":        newPassword,
+			"confirmPassword": newPassword,
+		})
+		assert.NoError(t, err)
+		r := httptest.NewRequest(http.MethodPut, "/auth/reset-password/"+token, bytes.NewReader(b))
+		w := httptest.NewRecorder()
+		app.Router().ServeHTTP(w, r)
+		return w
+	}
+
+	// First use succeeds.
+	assert.Equal(t, http.StatusOK, completeReset("FirstNewP@ss1!").Code)
+
+	// Reusing the same token must be rejected.
+	assert.Equal(t, http.StatusBadRequest, completeReset("SecondNewP@ss1!").Code)
+
+	// The password from the rejected second attempt must never have been applied.
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, user.Email)
+	assert.NoError(t, err)
+	assert.True(t, dbUser.Password.Compare("FirstNewP@ss1!"))
+	assert.False(t, dbUser.Password.Compare("SecondNewP@ss1!"))
+
+	// The "password changed" side effect must have happened exactly once.
+	app.mailer.AssertNumberOfCalls(t, "SendPasswordChangedEmail", 1)
+}
+
+// Test_Integration_PasswordResetInvalidatesExistingSessions verifies that
+// completing a password reset revokes all of the user's existing sessions.
+func Test_Integration_PasswordResetInvalidatesExistingSessions(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	helper := newTestHelper(t, app)
+
+	// Establish an existing session by logging in.
+	user, rr := helper.LoginAs(DefaultUser)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	oldSession := helper.GetSessionCookie(rr)
+	assert.NotNil(t, oldSession)
+
+	// Sanity: the session is valid before the reset.
+	session, err := app.storage.Session.Validate(t.Context(), nil, oldSession.Value)
+	assert.NoError(t, err)
+	assert.NotNil(t, session)
+
+	app.mailer.On("SendPasswordResetEmail", user.Email, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordChangedEmail", user.Email).Return(nil)
+
+	// Request a reset link and grab the emailed token.
+	body, err := json.Marshal(map[string]string{"email": user.Email})
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	token := app.mailer.Calls[0].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	// Complete the reset.
+	body, err = json.Marshal(map[string]string{
+		"password":        "BrandNewP@ss1!",
+		"confirmPassword": "BrandNewP@ss1!",
+	})
+	assert.NoError(t, err)
+	req = httptest.NewRequest(http.MethodPut, "/auth/reset-password/"+token, bytes.NewReader(body))
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// The pre-existing session must now be invalid, both at the store level...
+	session, err = app.storage.Session.Validate(t.Context(), nil, oldSession.Value)
+	assert.Error(t, err)
+	assert.Nil(t, session)
+
+	// ...and end-to-end through the auth middleware.
+	req = httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.AddCookie(oldSession)
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+}

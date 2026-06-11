@@ -354,24 +354,6 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			return
 		}
 
-		token, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.EmailVerificationIntent)
-		if err != nil {
-			verificationFailed = true
-			writeJSONError(w, http.StatusBadRequest, "Invalid token")
-			return
-		}
-		if !token.UserID.Valid {
-			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
-			return
-		}
-		user, err := ac.store.User.GetByID(r.Context(), nil, token.UserID.String)
-		if err != nil {
-			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, err.Error())
-			return
-		}
-
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
 			verificationFailed = true
@@ -387,15 +369,28 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			}
 		}(tx)
 
-		user.EmailVerified = true
-		_, err = ac.store.User.Update(r.Context(), tx, user)
+		// Atomically validate and consume the token; a rollback below restores it.
+		token, err := ac.store.Verification.Consume(r.Context(), tx, tokenStr, auth.EmailVerificationIntent)
+		if err != nil {
+			verificationFailed = true
+			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			return
+		}
+		if !token.UserID.Valid {
+			verificationFailed = true
+			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
+			return
+		}
+
+		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
 		if err != nil {
 			verificationFailed = true
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 
-		err = ac.store.Verification.Delete(r.Context(), tx, tokenStr)
+		user.EmailVerified = true
+		_, err = ac.store.User.Update(r.Context(), tx, user)
 		if err != nil {
 			verificationFailed = true
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -516,20 +511,6 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			return
 		}
 
-		verificationToken, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.MagicLinkIntent)
-		if err != nil {
-			slog.Error("Token is invalid")
-			ac.FailedMagicLinkRedirect(w, r)
-			return
-		}
-
-		// Email is required for magic link sign in to make sure we can create a user if it doesn't exist and find user by email if it does
-		if !verificationToken.Email.Valid {
-			slog.Error("Email is invalid")
-			ac.FailedMagicLinkRedirect(w, r)
-			return
-		}
-
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
 			ac.FailedMagicLinkRedirect(w, r)
@@ -543,6 +524,21 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 				}
 			}
 		}(tx)
+
+		// Atomically validate and consume the token; a rollback below restores it.
+		verificationToken, err := ac.store.Verification.Consume(r.Context(), tx, tokenStr, auth.MagicLinkIntent)
+		if err != nil {
+			slog.Error("Token is invalid")
+			ac.FailedMagicLinkRedirect(w, r)
+			return
+		}
+
+		// Email is required for magic link sign in to make sure we can create a user if it doesn't exist and find user by email if it does
+		if !verificationToken.Email.Valid {
+			slog.Error("Email is invalid")
+			ac.FailedMagicLinkRedirect(w, r)
+			return
+		}
 
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, verificationToken.Email.String)
 		if err != nil {
@@ -605,11 +601,6 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			ExpiresAt: time.Now().Add(24 * time.Hour),
 		})
 		if err != nil {
-			ac.FailedMagicLinkRedirect(w, r)
-			return
-		}
-
-		if err = ac.store.Verification.Delete(r.Context(), tx, tokenStr); err != nil {
 			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
@@ -714,24 +705,9 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		token, err := ac.store.Verification.Validate(r.Context(), nil, tokenStr, auth.PasswordResetIntent)
-		if err != nil {
-			writeJSONError(w, http.StatusBadRequest, "Invalid token")
-			return
-		}
-		if !token.UserID.Valid {
-			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
-			return
-		}
 		var req request
 		if err := readAndValidateJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		user, err := ac.store.User.GetByID(r.Context(), nil, token.UserID.String)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "Failed to get user")
 			return
 		}
 
@@ -749,6 +725,23 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			}
 		}(tx)
 
+		// Atomically validate and consume the token; a rollback below restores it.
+		token, err := ac.store.Verification.Consume(r.Context(), tx, tokenStr, auth.PasswordResetIntent)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			return
+		}
+		if !token.UserID.Valid {
+			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
+			return
+		}
+
+		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Failed to get user")
+			return
+		}
+
 		if err = user.Password.Set(req.Password); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to set password")
 			return
@@ -758,8 +751,10 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		if err = ac.store.Verification.Delete(r.Context(), tx, tokenStr); err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "Failed to delete token")
+		// Invalidate all existing sessions so the reset locks out anyone holding an
+		// old session (e.g. after an account compromise).
+		if err = ac.store.Session.DeleteForUser(r.Context(), tx, user.ID); err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "Failed to revoke sessions")
 			return
 		}
 
