@@ -14,7 +14,7 @@ import (
 type Session struct {
 	BaseEntity
 	UserID    string    `json:"userId" db:"user_id"`
-	Token     string    `json:"token" db:"token"`
+	Token     string    `json:"-" db:"token"`
 	ExpiresAt time.Time `json:"expiresAt" db:"expires_at"`
 	IPAddress string    `json:"ipAddress" db:"ip_address"`
 	UserAgent string    `json:"userAgent" db:"user_agent"`
@@ -37,7 +37,8 @@ func (s *SessionStore) Create(ctx context.Context, tx *sqlx.Tx, session *Session
 	if err != nil {
 		return "", err
 	}
-	session.Token = token
+	// Store only the hash; the raw token is returned to the caller (set as the cookie).
+	session.Token = auth.HashToken(token)
 	session.ExpiresAt = time.Now().Add(auth.SessionDuration)
 
 	if tx != nil {
@@ -62,7 +63,7 @@ func (s *SessionStore) Validate(ctx context.Context, tx *sqlx.Tx, token string) 
 	defer cancel()
 
 	session := &Session{}
-	err := s.db.GetContext(ctx, session, query, token)
+	err := s.db.GetContext(ctx, session, query, auth.HashToken(token))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -81,11 +82,12 @@ func (s *SessionStore) Delete(ctx context.Context, tx *sqlx.Tx, token string) er
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
+	hashed := auth.HashToken(token)
 	var err error
 	if tx != nil {
-		_, err = tx.ExecContext(ctx, query, token)
+		_, err = tx.ExecContext(ctx, query, hashed)
 	} else {
-		_, err = s.db.ExecContext(ctx, query, token)
+		_, err = s.db.ExecContext(ctx, query, hashed)
 	}
 	if err != nil {
 		return err
@@ -109,7 +111,7 @@ func (s *SessionStore) Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string
 		return "", err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, token, time.Now().Add(auth.SessionDuration), oldToken)
+	_, err = s.db.ExecContext(ctx, query, auth.HashToken(token), time.Now().Add(auth.SessionDuration), auth.HashToken(oldToken))
 	if err != nil {
 		return "", err
 	}

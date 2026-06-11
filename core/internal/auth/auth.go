@@ -2,9 +2,11 @@ package auth
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"database/sql/driver"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -156,6 +158,15 @@ func GenerateSecureToken(n int) (string, error) {
 	}
 
 	return base64.URLEncoding.EncodeToString(token), nil
+}
+
+// HashToken returns the hex-encoded SHA-256 of a token. Session and verification
+// tokens are high-entropy random values, so a fast hash (not bcrypt) is the correct
+// choice: we store only the hash and look it up by equality, so a database leak
+// exposes no usable credentials.
+func HashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
 }
 
 // CookieOptions configures the security-relevant attributes of the session cookie.

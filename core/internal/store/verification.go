@@ -19,7 +19,7 @@ type Verification struct {
 	UserID    *auth.NullString        `json:"userId" db:"user_id"`
 	Email     *auth.NullString        `json:"email" db:"email"`
 	OTP       *auth.Hashed            `json:"-" db:"otp"`
-	Value     string                  `json:"value" db:"value"`
+	Value     string                  `json:"-" db:"value"`
 	ExpiresAt time.Time               `json:"expiresAt" db:"expires_at"`
 	DbTimestamps
 }
@@ -56,7 +56,8 @@ func (s *VerificationStore) Create(ctx context.Context, tx *sqlx.Tx, verificatio
 	if err != nil {
 		return "", err
 	}
-	verification.Value = verificationToken
+	// Store only the hash; the raw token is returned to the caller (emailed to the user).
+	verification.Value = auth.HashToken(verificationToken)
 	verification.ExpiresAt = time.Now().Add(TokenDuration)
 
 	if tx != nil {
@@ -81,7 +82,7 @@ func (s *VerificationStore) Validate(ctx context.Context, tx *sqlx.Tx, tokenStr 
 	defer cancel()
 
 	token := NewVerification(intent, nil, nil)
-	err := s.db.GetContext(ctx, token, query, tokenStr, intent)
+	err := s.db.GetContext(ctx, token, query, auth.HashToken(tokenStr), intent)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -101,11 +102,12 @@ func (s *VerificationStore) Delete(ctx context.Context, tx *sqlx.Tx, token strin
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
+	hashed := auth.HashToken(token)
 	var err error
 	if tx != nil {
-		_, err = tx.ExecContext(ctx, query, token)
+		_, err = tx.ExecContext(ctx, query, hashed)
 	} else {
-		_, err = s.db.ExecContext(ctx, query, token)
+		_, err = s.db.ExecContext(ctx, query, hashed)
 	}
 	if err != nil {
 		return err

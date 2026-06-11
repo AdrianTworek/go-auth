@@ -395,7 +395,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			return
 		}
 
-		err = ac.store.Verification.Delete(r.Context(), tx, token.Value)
+		err = ac.store.Verification.Delete(r.Context(), tx, tokenStr)
 		if err != nil {
 			verificationFailed = true
 			writeJSONError(w, http.StatusInternalServerError, err.Error())
@@ -609,7 +609,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			return
 		}
 
-		if err = ac.store.Verification.Delete(r.Context(), tx, verificationToken.Value); err != nil {
+		if err = ac.store.Verification.Delete(r.Context(), tx, tokenStr); err != nil {
 			ac.FailedMagicLinkRedirect(w, r)
 			return
 		}
@@ -758,7 +758,7 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 			return
 		}
 
-		if err = ac.store.Verification.Delete(r.Context(), tx, token.Value); err != nil {
+		if err = ac.store.Verification.Delete(r.Context(), tx, tokenStr); err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to delete token")
 			return
 		}
