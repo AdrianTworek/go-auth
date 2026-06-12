@@ -612,6 +612,25 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	assert.Equal(t, http.StatusFound, rr.Code)
 }
 
+// Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin verifies that with
+// RequireVerifiedEmail enabled, an unverified user is blocked from password login
+// while a verified user is still allowed.
+func Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin(t *testing.T) {
+	c := NewTestAuthConfig(nil, &SessionConfig{RequireVerifiedEmail: true}, nil)
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	helper := newTestHelper(t, app)
+
+	// Unverified user is blocked with 403.
+	_, rr := helper.LoginAs(UnverifiedUser)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	// Verified user can still log in.
+	_, rr = helper.LoginAs(DefaultUser)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
 // Test_Integration_PasswordResetTokenIsSingleUse verifies that a verification
 // token is consumed atomically: once a reset succeeds, the same token cannot be
 // replayed, and the rejected attempt has no side effects.

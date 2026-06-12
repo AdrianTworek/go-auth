@@ -38,6 +38,13 @@ type SessionConfig struct {
 	//
 	// Default: false
 	LoginAfterRegister bool
+	// RequireVerifiedEmail, when true, blocks password login (403) for users whose
+	// email has not been verified. Magic-link and OAuth logins are unaffected since
+	// they establish a verified email. When true, auto-login after registration is
+	// also suppressed, since the freshly registered user is not yet verified.
+	//
+	// Default: false
+	RequireVerifiedEmail bool
 	// MagicLinkSuccesfulRedirectURL is used when logging in using magic link, when login was successful user will be redirected to this URL.
 	// It is required if magic link is used, otherwise magic link login will not work properly.
 	//

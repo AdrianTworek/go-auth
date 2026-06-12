@@ -20,8 +20,8 @@ const genericResetMessage = "If an account with that email exists, a password re
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 	type registerRequest struct {
 		Email           string `json:"email" validate:"required,min=3,max=255,email"`
-		Password        string `json:"password" validate:"required,min=8,max=30"`
-		ConfirmPassword string `json:"confirmPassword" validate:"required,min=8,max=30,eqfield=Password"`
+		Password        string `json:"password" validate:"required,min=8,max=72"`
+		ConfirmPassword string `json:"confirmPassword" validate:"required,min=8,max=72,eqfield=Password"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -85,8 +85,9 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
+		// Suppress auto-login when verification is required: the new user is unverified.
 		var token string
-		if ac.config.Session.LoginAfterRegister {
+		if ac.config.Session.LoginAfterRegister && !ac.config.Session.RequireVerifiedEmail {
 			token, err = ac.store.Session.Create(
 				r.Context(),
 				tx,
@@ -211,6 +212,11 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 
 		if !user.Password.Compare(req.Password) {
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
+			return
+		}
+
+		if ac.config.Session.RequireVerifiedEmail && !user.EmailVerified {
+			writeJSONError(w, http.StatusForbidden, "Email not verified")
 			return
 		}
 
@@ -702,7 +708,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 
 func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) http.HandlerFunc {
 	type request struct {
-		Password        string `json:"password" validate:"required,min=8,max=30"`
+		Password        string `json:"password" validate:"required,min=8,max=72"`
 		ConfirmPassword string `json:"confirmPassword" validate:"eqfield=Password"`
 	}
 
