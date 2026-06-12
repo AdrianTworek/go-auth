@@ -68,6 +68,13 @@ type SessionConfig struct {
 	// CookieSameSite controls the SameSite attribute on the session cookie. When unset
 	// (zero value) it defaults to http.SameSiteLaxMode.
 	//
+	// SameSite is the library's built-in CSRF mitigation: with the default Lax, browsers
+	// do not attach the session cookie to cross-site POST/PUT/DELETE requests, so
+	// state-changing endpoints are protected from classic CSRF. For especially sensitive
+	// actions, add an application-layer CSRF token as defense in depth. SameSiteStrictMode
+	// hardens this further but breaks the OAuth callback (a cross-site top-level GET), so
+	// prefer Lax if you use OAuth.
+	//
 	// Default: Lax
 	CookieSameSite http.SameSite
 	// CookieDomain sets the Domain attribute on the session cookie. Empty produces a

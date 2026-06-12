@@ -1,1 +1,3 @@
-# Monorepo for all packages for go-auth project
+# go-auth
+
+A pluggable, session-based authentication library for Go, backed by PostgreSQL.
