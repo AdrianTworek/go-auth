@@ -139,3 +139,13 @@ func (s *SessionStore) DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID st
 
 	return nil
 }
+
+func (s *SessionStore) DeleteExpired(ctx context.Context) error {
+	query := `DELETE FROM sessions WHERE expires_at < NOW()`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, query)
+	return err
+}

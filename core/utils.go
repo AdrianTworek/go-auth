@@ -76,9 +76,17 @@ func serverError(w http.ResponseWriter, r *http.Request, err error) {
 // Context
 type ctxKey string
 
-const ctxUserKey = ctxKey("user")
+const (
+	ctxUserKey         = ctxKey("user")
+	ctxSessionTokenKey = ctxKey("session_token")
+)
 
 func getUserFromContext(r *http.Request) (*store.User, bool) {
 	user, ok := r.Context().Value(ctxUserKey).(*store.User)
 	return user, ok
+}
+
+func getSessionTokenFromContext(r *http.Request) (string, bool) {
+	token, ok := r.Context().Value(ctxSessionTokenKey).(string)
+	return token, ok
 }

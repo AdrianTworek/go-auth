@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -97,6 +98,13 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		return nil, fmt.Errorf("SessionSecret must be at least 32 bytes when OAuth is enabled")
 	}
 
+	// Apply a custom bcrypt cost if configured (0 leaves the default).
+	if config.BcryptCost != 0 {
+		if err := auth.SetBcryptCost(config.BcryptCost); err != nil {
+			return nil, err
+		}
+	}
+
 	db, err := db.NewPostgres(config.Db.Dsn)
 	if err != nil {
 		return nil, err
@@ -104,7 +112,7 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 
 	// If no mailer is provided, use the default one that only logs the messages
 	if config.Mailer == nil {
-		config.Mailer = mailer.New()
+		config.Mailer = mailer.New(config.BaseURL)
 	}
 
 	var hookStore *HookStore
@@ -133,4 +141,14 @@ func (ac *AuthClient) deleteSessionCookie() *http.Cookie {
 
 func (ac *AuthClient) cookieName() string {
 	return ac.cookieOpts.Name
+}
+
+// CleanupExpired deletes expired sessions and verification tokens. Expired rows are
+// already ignored by lookups (which filter on expires_at), so this is housekeeping
+// to keep the tables from growing unbounded; call it periodically (e.g. from a cron).
+func (ac *AuthClient) CleanupExpired(ctx context.Context) error {
+	if err := ac.store.Session.DeleteExpired(ctx); err != nil {
+		return err
+	}
+	return ac.store.Verification.DeleteExpired(ctx)
 }

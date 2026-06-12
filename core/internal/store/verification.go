@@ -18,7 +18,6 @@ type Verification struct {
 	Intent    auth.VerificationIntent `json:"intent" db:"intent"`
 	UserID    *auth.NullString        `json:"userId" db:"user_id"`
 	Email     *auth.NullString        `json:"email" db:"email"`
-	OTP       *auth.Hashed            `json:"-" db:"otp"`
 	Value     string                  `json:"-" db:"value"`
 	ExpiresAt time.Time               `json:"expiresAt" db:"expires_at"`
 	DbTimestamps
@@ -125,4 +124,14 @@ func (s *VerificationStore) Delete(ctx context.Context, tx *sqlx.Tx, token strin
 	}
 
 	return nil
+}
+
+func (s *VerificationStore) DeleteExpired(ctx context.Context) error {
+	query := `DELETE FROM verifications WHERE expires_at < NOW()`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, query)
+	return err
 }

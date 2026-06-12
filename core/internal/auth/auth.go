@@ -31,21 +31,18 @@ type VerificationIntent int
 const (
 	PasswordResetIntent VerificationIntent = iota
 	EmailVerificationIntent
-	OneTimePasswordIntent
 	MagicLinkIntent
 )
 
 var verificationIntentToString = map[VerificationIntent]string{
 	PasswordResetIntent:     "password_reset",
 	EmailVerificationIntent: "email_verification",
-	OneTimePasswordIntent:   "one_time_password",
 	MagicLinkIntent:         "magic_link",
 }
 
 var stringToVerificationIntent = map[string]VerificationIntent{
 	"password_reset":     PasswordResetIntent,
 	"email_verification": EmailVerificationIntent,
-	"one_time_password":  OneTimePasswordIntent,
 	"magic_link":         MagicLinkIntent,
 }
 
@@ -130,10 +127,26 @@ func NewNullString(s string) *NullString {
 	return &NullString{sql.NullString{String: s, Valid: s != ""}}
 }
 
+// bcryptCost is the work factor used for password hashing. Tune it via
+// SetBcryptCost (e.g. from AuthConfig.BcryptCost).
+var bcryptCost = bcrypt.DefaultCost
+
+// SetBcryptCost updates the bcrypt work factor used for hashing passwords and
+// regenerates the timing-equalization hash so DummyCompare stays in sync. It
+// returns an error if cost is outside bcrypt's valid range.
+func SetBcryptCost(cost int) error {
+	if cost < bcrypt.MinCost || cost > bcrypt.MaxCost {
+		return fmt.Errorf("bcrypt cost must be between %d and %d", bcrypt.MinCost, bcrypt.MaxCost)
+	}
+	bcryptCost = cost
+	dummyPasswordHash = mustGenerateDummyHash(cost)
+	return nil
+}
+
 type Hashed []byte
 
 func (p *Hashed) Set(plainText string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(plainText), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(plainText), bcryptCost)
 	if err != nil {
 		return err
 	}
@@ -148,12 +161,12 @@ func (p *Hashed) Compare(plainText string) bool {
 
 // dummyPasswordHash is a valid bcrypt hash (at the same cost as real passwords)
 // used solely to spend comparable CPU time on the user-not-found login path.
-var dummyPasswordHash = mustGenerateDummyHash()
+var dummyPasswordHash = mustGenerateDummyHash(bcryptCost)
 
-func mustGenerateDummyHash() []byte {
-	hash, err := bcrypt.GenerateFromPassword([]byte("timing-equalization-password"), bcrypt.DefaultCost)
+func mustGenerateDummyHash(cost int) []byte {
+	hash, err := bcrypt.GenerateFromPassword([]byte("timing-equalization-password"), cost)
 	if err != nil {
-		// Unreachable for a short, fixed password at the default cost.
+		// Unreachable for a short, fixed password at a valid cost.
 		panic(err)
 	}
 	return hash

@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
@@ -24,17 +23,19 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 				return
 			}
 
-			// Skip session refresh for logout requests
-			if !strings.HasSuffix(r.URL.Path, "/logout") {
-				if time.Until(session.ExpiresAt) < auth.SessionRefreshThreshold {
-					newToken, err := ac.store.Session.Refresh(r.Context(), nil, token.Value)
-					if err != nil {
-						writeJSONError(w, http.StatusInternalServerError, "failed to refresh session")
-						return
-					}
-
-					http.SetCookie(w, ac.newSessionCookie(newToken))
+			// Slide the session when it's close to expiry. The effective token is
+			// tracked so downstream handlers (e.g. logout) act on the current token
+			// even after a rotation.
+			effectiveToken := token.Value
+			if time.Until(session.ExpiresAt) < auth.SessionRefreshThreshold {
+				newToken, err := ac.store.Session.Refresh(r.Context(), nil, token.Value)
+				if err != nil {
+					serverError(w, r, err)
+					return
 				}
+
+				http.SetCookie(w, ac.newSessionCookie(newToken))
+				effectiveToken = newToken
 			}
 
 			user, err := ac.store.User.GetByID(r.Context(), nil, session.UserID)
@@ -44,6 +45,7 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 			}
 
 			ctx := context.WithValue(r.Context(), ctxUserKey, user)
+			ctx = context.WithValue(ctx, ctxSessionTokenKey, effectiveToken)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

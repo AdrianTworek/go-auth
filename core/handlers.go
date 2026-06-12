@@ -273,23 +273,12 @@ func (ac *AuthClient) GetMeHandler() http.HandlerFunc {
 
 func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		token, err := r.Cookie(ac.cookieName())
-		if err != nil {
+		// User and the effective session token are populated by AuthMiddleware,
+		// which this handler is always mounted behind.
+		user, ok := getUserFromContext(r)
+		token, tokenOK := getSessionTokenFromContext(r)
+		if !ok || !tokenOK {
 			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
-			return
-		}
-
-		sess, err := ac.store.Session.Validate(r.Context(), nil, token.Value)
-		if err != nil {
-			slog.Error("could not retrieve session", "cause", err)
-			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
-			return
-		}
-
-		user, err := ac.store.User.GetByID(r.Context(), nil, sess.UserID)
-		if err != nil {
-			slog.Error("could not retrieve user from session", "cause", err)
-			writeJSONError(w, http.StatusInternalServerError, "Internal Server Error")
 			return
 		}
 
@@ -311,8 +300,7 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 			return
 		}
 
-		err = ac.store.Session.Delete(r.Context(), nil, token.Value)
-		if err != nil {
+		if err = ac.store.Session.Delete(r.Context(), nil, token); err != nil {
 			serverError(w, r, err)
 			return
 		}

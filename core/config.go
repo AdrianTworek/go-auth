@@ -22,6 +22,11 @@ type AuthConfig struct {
 	Hooks         *HookMap
 	BaseURL       string
 	SessionSecret string
+	// BcryptCost sets the bcrypt work factor for password hashing. When 0 the
+	// library default (bcrypt.DefaultCost, 10) is used. Valid range is 4-31.
+	//
+	// Default: 10
+	BcryptCost int
 }
 
 type OAuthConfig struct {

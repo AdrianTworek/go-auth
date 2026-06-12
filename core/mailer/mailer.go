@@ -1,10 +1,6 @@
 package mailer
 
-import (
-	"fmt"
-
-	"github.com/spf13/viper"
-)
+import "fmt"
 
 type Mailer interface {
 	SendVerificationEmail(to, token string) error
@@ -14,7 +10,8 @@ type Mailer interface {
 }
 
 type AppMailer struct {
-	from string
+	from    string
+	baseURL string
 }
 
 func (m *AppMailer) SendVerificationEmail(to, token string) error {
@@ -37,14 +34,14 @@ func (m *AppMailer) SendPasswordChangedEmail(to string) error {
 
 func (m *AppMailer) SendMagicLinkEmail(to, token string) error {
 	// Send an mail to the user with the magic link token
-	backendURL := viper.GetString("BASE_URL")
-	magicLinkURL := fmt.Sprintf("%s/auth/magic-link/%s", backendURL, token)
+	magicLinkURL := fmt.Sprintf("%s/auth/magic-link/%s", m.baseURL, token)
 	fmt.Printf("Sending magic link mail to %s from %s url: %s\n", to, m.from, magicLinkURL)
 	return nil
 }
 
-func New() *AppMailer {
+func New(baseURL string) *AppMailer {
 	return &AppMailer{
-		from: "autosend@go-auth.com",
+		from:    "autosend@go-auth.com",
+		baseURL: baseURL,
 	}
 }
