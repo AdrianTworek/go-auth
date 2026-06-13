@@ -9,6 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 type TestUser struct {
@@ -610,6 +612,27 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	app.mailer.AssertExpectations(t)
 
 	assert.Equal(t, http.StatusFound, rr.Code)
+}
+
+// Test_Integration_UserWithoutPasswordStoresNull verifies that a user created
+// without a password (e.g. an OAuth-only account) is persisted with a NULL
+// password rather than an empty byte array.
+func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	u := store.NewUser("oauth_only@example.com", true, nil, nil, nil, nil)
+	err := app.storage.User.Create(t.Context(), nil, u)
+	assert.NoError(t, err)
+
+	var passwordIsNull bool
+	err = db.QueryRowContext(
+		t.Context(),
+		`SELECT password IS NULL FROM users WHERE email = $1`,
+		"oauth_only@example.com",
+	).Scan(&passwordIsNull)
+	assert.NoError(t, err)
+	assert.True(t, passwordIsNull)
 }
 
 // Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin verifies that with

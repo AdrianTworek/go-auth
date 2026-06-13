@@ -159,6 +159,30 @@ func (p *Hashed) Compare(plainText string) bool {
 	return bcrypt.CompareHashAndPassword(*p, []byte(plainText)) == nil
 }
 
+// Value implements driver.Valuer so an empty hash (e.g. an OAuth-only user with no
+// password) is stored as SQL NULL rather than an empty byte array.
+func (p Hashed) Value() (driver.Value, error) {
+	if len(p) == 0 {
+		return nil, nil
+	}
+	return []byte(p), nil
+}
+
+// Scan implements sql.Scanner, mapping a NULL password back to an empty hash.
+func (p *Hashed) Scan(value any) error {
+	switch v := value.(type) {
+	case nil:
+		*p = nil
+	case []byte:
+		*p = append(Hashed(nil), v...)
+	case string:
+		*p = Hashed(v)
+	default:
+		return fmt.Errorf("cannot scan %T into Hashed", value)
+	}
+	return nil
+}
+
 // dummyPasswordHash is a valid bcrypt hash (at the same cost as real passwords)
 // used solely to spend comparable CPU time on the user-not-found login path.
 var dummyPasswordHash = mustGenerateDummyHash(bcryptCost)

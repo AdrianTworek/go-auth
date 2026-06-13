@@ -1,2 +1,0 @@
--- Irreversible: hashed tokens cannot be restored to their original plaintext
--- values, so there is nothing to roll back.

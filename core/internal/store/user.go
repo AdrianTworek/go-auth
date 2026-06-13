@@ -138,8 +138,7 @@ func (s *UserStore) Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User,
 	UPDATE users
 	SET 
 		email = :email, 
-		password = :password, 
-		updated_at = NOW(), 
+		password = :password,
 		email_verified = :email_verified,
 		avatar_url = :avatar_url,
 		avatar_source = :avatar_source,
