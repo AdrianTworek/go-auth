@@ -523,9 +523,9 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 
 func Test_Integration_SendMagicLink(t *testing.T) {
 	sc := &SessionConfig{
-		MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
-		MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
-		LoginAfterRegister:            true,
+		MagicLinkSuccessfulRedirectURL: "http://localhost:6969/success",
+		MagicLinkFailedRedirectURL:     "http://localhost:6969/failed",
+		LoginAfterRegister:             true,
 	}
 	c := NewTestAuthConfig(nil, sc, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
@@ -633,6 +633,27 @@ func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
 	).Scan(&passwordIsNull)
 	assert.NoError(t, err)
 	assert.True(t, passwordIsNull)
+}
+
+// Test_Integration_RequireVerifiedEmailSuppressesAutoLogin verifies that when
+// verification is required, registration does not auto-login the new (unverified)
+// user even if LoginAfterRegister is enabled.
+func Test_Integration_RequireVerifiedEmailSuppressesAutoLogin(t *testing.T) {
+	c := NewTestAuthConfig(nil, &SessionConfig{
+		LoginAfterRegister:   true,
+		RequireVerifiedEmail: true,
+	}, nil)
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := "needs_verify@example.com"
+	app.mailer.On("SendVerificationEmail", userEmail, mock.Anything).Return(nil)
+
+	helper := newTestHelper(t, app)
+	_, rr := helper.CreateUser(userEmail, "Password123!")
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	assert.Nil(t, helper.GetSessionCookie(rr)) // no session despite LoginAfterRegister
 }
 
 // Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin verifies that with

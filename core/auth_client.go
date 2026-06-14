@@ -24,12 +24,12 @@ type AuthClient struct {
 
 // Checks if mailer is configured and magic link redirect urls are also provided
 func (c *AuthClient) CanLoginWithMagicLink() bool {
-	return c.config.Session.MagicLinkSuccesfulRedirectURL != "" && c.config.Session.MagicLinkFailedRedirectURL != "" && c.config.Mailer != nil
+	return c.config.Session.MagicLinkSuccessfulRedirectURL != "" && c.config.Session.MagicLinkFailedRedirectURL != "" && c.config.Mailer != nil
 }
 
 // Redirects from the endpoint to the success frontend url provided by user
 func (c *AuthClient) SuccessMagicLinkRedirect(w http.ResponseWriter, r *http.Request) {
-	http.Redirect(w, r, c.config.Session.MagicLinkSuccesfulRedirectURL, http.StatusFound)
+	http.Redirect(w, r, c.config.Session.MagicLinkSuccessfulRedirectURL, http.StatusFound)
 }
 
 // Redirects from the endpoint to the failed frontend url provided by user

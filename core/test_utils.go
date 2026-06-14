@@ -267,9 +267,9 @@ func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig, oauth *OAuthConfig)
 	}
 	if s == nil {
 		s = &SessionConfig{
-			LoginAfterRegister:            true,
-			MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
-			MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
+			LoginAfterRegister:             true,
+			MagicLinkSuccessfulRedirectURL: "http://localhost:6969/success",
+			MagicLinkFailedRedirectURL:     "http://localhost:6969/failed",
 		}
 	}
 

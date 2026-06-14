@@ -861,8 +861,9 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			}
 		}
 
-		// User exists, update OAuth provider and ID
-		if !user.OAuthProvider.Valid || user.OAuthProvider.String != gothUser.Provider {
+		// User exists, update OAuth provider and ID. The field is nil when the column
+		// is NULL (e.g. an existing password-only account), which counts as "not set".
+		if user.OAuthProvider == nil || !user.OAuthProvider.Valid || user.OAuthProvider.String != gothUser.Provider {
 			user.OAuthProvider = auth.NewNullString(gothUser.Provider)
 			user.OAuthID = auth.NewNullString(gothUser.UserID)
 			user.EmailVerified = true
@@ -873,8 +874,8 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			}
 		}
 
-		// Update avatar URL if it's from OAuth provider or not set
-		if !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
+		// Update avatar URL if it's from OAuth provider or not set (nil = NULL = not set).
+		if user.AvatarSource == nil || !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
 			user.AvatarURL = auth.NewNullString(gothUser.AvatarURL)
 			user.AvatarSource = auth.NewNullString("oauth")
 			user, err = ac.store.User.Update(r.Context(), tx, user)

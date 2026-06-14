@@ -120,7 +120,7 @@ type HookResponse struct {
 }
 
 func (hr *HookResponse) Error() string {
-	return "This is not an error this is used to prematurely respond from endpoints using hooks"
+	return "not a real error: sentinel used to send an early response from an endpoint via a hook"
 }
 
 func NewHookResponse(status int, body any) *HookResponse {
@@ -137,7 +137,7 @@ type HookRedirect struct {
 }
 
 func (hr *HookRedirect) Error() string {
-	return "This is not an error this is used to redirect from endpoints using hooks"
+	return "not a real error: sentinel used to redirect from an endpoint via a hook"
 }
 
 func NewHookRedirect(status int, url string) *HookRedirect {
