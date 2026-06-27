@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,27 @@ func init() {
 	examples.SetupEnv()
 }
 
+func beforeLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("this is from the before login hook", "event", event)
+	return nil
+}
+
+func afterLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("this is from the after login hook", "event", event)
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/success",
+		Status: http.StatusFound,
+	}
+}
+
+func emailVerificationFailed(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("email verification failed")
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/failed",
+		Status: http.StatusFound,
+	}
+}
+
 func main() {
 	r := gin.Default()
 
@@ -28,9 +51,12 @@ func main() {
 			Dsn: viper.GetString("DSN"),
 		},
 		Session: &core.SessionConfig{
-			MagicLinkSuccesfulRedirectURL: "http://localhost:8080/front/success",
-			MagicLinkFailedRedirectURL:    "http://localhost:8080/front/failed",
-			LoginAfterRegister:            true,
+			MagicLinkSuccessfulRedirectURL: "http://localhost:8080/front/success",
+			MagicLinkFailedRedirectURL:     "http://localhost:8080/front/failed",
+			LoginAfterRegister:             true,
+			// This example runs over plain HTTP, so disable Secure to let the
+			// browser send the session cookie. Remove this in production (HTTPS).
+			CookieSecure: core.Ptr(false),
 		},
 		OAuth: &core.OAuthConfig{
 			Providers: []goth.Provider{
@@ -53,6 +79,19 @@ func main() {
 					),
 					"user:email",
 				),
+			},
+		},
+		SessionSecret: viper.GetString("SESSION_SECRET"),
+		BaseURL:       "http://localhost:8080",
+		Hooks: &core.HookMap{
+			core.EventBeforeLogin: core.HookList{
+				beforeLogin,
+			},
+			core.EventAfterLogin: core.HookList{
+				afterLogin,
+			},
+			core.EventEmailVerificationFailed: core.HookList{
+				emailVerificationFailed,
 			},
 		},
 	})

@@ -18,8 +18,7 @@ type Verification struct {
 	Intent    auth.VerificationIntent `json:"intent" db:"intent"`
 	UserID    *auth.NullString        `json:"userId" db:"user_id"`
 	Email     *auth.NullString        `json:"email" db:"email"`
-	OTP       *auth.Hashed            `json:"-" db:"otp"`
-	Value     string                  `json:"value" db:"value"`
+	Value     string                  `json:"-" db:"value"`
 	ExpiresAt time.Time               `json:"expiresAt" db:"expires_at"`
 	DbTimestamps
 }
@@ -56,7 +55,8 @@ func (s *VerificationStore) Create(ctx context.Context, tx *sqlx.Tx, verificatio
 	if err != nil {
 		return "", err
 	}
-	verification.Value = verificationToken
+	// Store only the hash; the raw token is returned to the caller (emailed to the user).
+	verification.Value = auth.HashToken(verificationToken)
 	verification.ExpiresAt = time.Now().Add(TokenDuration)
 
 	if tx != nil {
@@ -71,17 +71,28 @@ func (s *VerificationStore) Create(ctx context.Context, tx *sqlx.Tx, verificatio
 	return verificationToken, nil
 }
 
-func (s *VerificationStore) Validate(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error) {
+// Consume atomically validates and deletes a verification token, returning the row
+// if it was valid (matching intent and not expired). Running it inside a transaction
+// makes token use strictly single-use: concurrent callers race on the same DELETE so
+// only one succeeds, and a rollback restores the token if the surrounding operation
+// fails.
+func (s *VerificationStore) Consume(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error) {
 	query := `
-		SELECT * FROM verifications 
-    WHERE value = $1 AND intent = $2 AND expires_at > NOW()
+		DELETE FROM verifications
+		WHERE value = $1 AND intent = $2 AND expires_at > NOW()
+		RETURNING *
 	`
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
 	token := NewVerification(intent, nil, nil)
-	err := s.db.GetContext(ctx, token, query, tokenStr, intent)
+	var err error
+	if tx != nil {
+		err = tx.GetContext(ctx, token, query, auth.HashToken(tokenStr), intent)
+	} else {
+		err = s.db.GetContext(ctx, token, query, auth.HashToken(tokenStr), intent)
+	}
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -101,15 +112,26 @@ func (s *VerificationStore) Delete(ctx context.Context, tx *sqlx.Tx, token strin
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
 	defer cancel()
 
+	hashed := auth.HashToken(token)
 	var err error
 	if tx != nil {
-		_, err = tx.ExecContext(ctx, query, token)
+		_, err = tx.ExecContext(ctx, query, hashed)
 	} else {
-		_, err = s.db.ExecContext(ctx, query, token)
+		_, err = s.db.ExecContext(ctx, query, hashed)
 	}
 	if err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func (s *VerificationStore) DeleteExpired(ctx context.Context) error {
+	query := `DELETE FROM verifications WHERE expires_at < NOW()`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	_, err := s.db.ExecContext(ctx, query)
+	return err
 }

@@ -29,11 +29,13 @@ type Storage struct {
 		Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string) (string, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
+		DeleteExpired(ctx context.Context) error
 	}
 	Verification interface {
 		Create(ctx context.Context, tx *sqlx.Tx, verification *Verification) (string, error)
-		Validate(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
+		Consume(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
+		DeleteExpired(ctx context.Context) error
 	}
 	Transaction interface {
 		Begin() (*sqlx.Tx, error)

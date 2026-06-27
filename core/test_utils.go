@@ -96,6 +96,7 @@ func (a *TestApp) Router() *chi.Mux {
 		Mailer:        a.mailer,
 		Session:       a.config.Session,
 		OAuth:         a.config.OAuth,
+		Hooks:         a.config.Hooks,
 		BaseURL:       a.config.BaseURL,
 		SessionSecret: a.env.SessionSecret,
 	})
@@ -267,9 +268,9 @@ func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig, oauth *OAuthConfig)
 	}
 	if s == nil {
 		s = &SessionConfig{
-			LoginAfterRegister:            true,
-			MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
-			MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
+			LoginAfterRegister:             true,
+			MagicLinkSuccessfulRedirectURL: "http://localhost:6969/success",
+			MagicLinkFailedRedirectURL:     "http://localhost:6969/failed",
 		}
 	}
 

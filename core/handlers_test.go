@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 type TestUser struct {
@@ -326,6 +329,36 @@ func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+// Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect verifies that
+// when an EventEmailVerificationFailed hook returns a redirect, an invalid-token
+// verification responds with that redirect instead of the default JSON error. This
+// is the behaviour every framework adapter must share (previously only adapters that
+// buffer the response honored the redirect).
+func Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect(t *testing.T) {
+	const failedURL = "http://localhost:6969/front/failed"
+
+	c := NewTestAuthConfig(nil, nil, nil)
+	c.Hooks = &HookMap{
+		EventEmailVerificationFailed: HookList{
+			func(ctx context.Context, event *AuthEvent) error {
+				return NewHookRedirect(http.StatusFound, failedURL)
+			},
+		},
+	}
+
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify/invalid_token", nil)
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	// The hook's redirect wins; the default "Invalid token" JSON is not written.
+	assert.Equal(t, http.StatusFound, rr.Code)
+	assert.Equal(t, failedURL, rr.Header().Get("Location"))
+	assert.NotContains(t, rr.Body.String(), "Invalid token")
+}
+
 func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -361,8 +394,9 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
+	// A malformed email fails request validation.
 	body := map[string]string{
-		"email": "invalid_email@example.com",
+		"email": "not-an-email",
 	}
 	json, err := json.Marshal(body)
 	assert.NoError(t, err)
@@ -377,6 +411,27 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 	app.Router().ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric verifies that an
+// unregistered (but well-formed) email gets the same generic 200 as a registered
+// one, so the response can't be used to enumerate accounts.
+func Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	body, err := json.Marshal(map[string]string{"email": "does_not_exist@example.com"})
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	var resp map[string]any
+	assert.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, genericResetMessage, resp["data"].(map[string]any)["message"])
 }
 
 func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
@@ -499,9 +554,9 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 
 func Test_Integration_SendMagicLink(t *testing.T) {
 	sc := &SessionConfig{
-		MagicLinkSuccesfulRedirectURL: "http://localhost:6969/success",
-		MagicLinkFailedRedirectURL:    "http://localhost:6969/failed",
-		LoginAfterRegister:            true,
+		MagicLinkSuccessfulRedirectURL: "http://localhost:6969/success",
+		MagicLinkFailedRedirectURL:     "http://localhost:6969/failed",
+		LoginAfterRegister:             true,
 	}
 	c := NewTestAuthConfig(nil, sc, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
@@ -588,4 +643,227 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	app.mailer.AssertExpectations(t)
 
 	assert.Equal(t, http.StatusFound, rr.Code)
+}
+
+// Test_Integration_CompleteMagicLinkVerifiesExistingUser verifies that completing
+// a magic link for an existing but unverified user marks their email as verified,
+// since possessing the link proves control of the inbox.
+func Test_Integration_CompleteMagicLinkVerifiesExistingUser(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := TestUserData[UnverifiedUser].Email
+	app.mailer.On("SendMagicLinkEmail", userEmail, mock.Anything).Return(nil)
+
+	// Sanity check: the seeded user starts unverified.
+	var verifiedBefore bool
+	err := db.QueryRowContext(
+		t.Context(),
+		`SELECT email_verified FROM users WHERE email = $1`,
+		userEmail,
+	).Scan(&verifiedBefore)
+	assert.NoError(t, err)
+	assert.False(t, verifiedBefore)
+
+	// Request a magic link for the existing user.
+	jsonBody, err := json.Marshal(map[string]string{"email": userEmail})
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/magic-link", bytes.NewReader(jsonBody))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Complete the magic link with the emailed token.
+	token := app.mailer.Calls[0].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	req = httptest.NewRequest(http.MethodGet, "/auth/magic-link/"+token, nil)
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	app.mailer.AssertExpectations(t)
+	assert.Equal(t, http.StatusFound, rr.Code)
+
+	// The user is now verified.
+	var verifiedAfter bool
+	err = db.QueryRowContext(
+		t.Context(),
+		`SELECT email_verified FROM users WHERE email = $1`,
+		userEmail,
+	).Scan(&verifiedAfter)
+	assert.NoError(t, err)
+	assert.True(t, verifiedAfter)
+}
+
+// Test_Integration_UserWithoutPasswordStoresNull verifies that a user created
+// without a password (e.g. an OAuth-only account) is persisted with a NULL
+// password rather than an empty byte array.
+func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	u := store.NewUser("oauth_only@example.com", true, nil, nil, nil, nil)
+	err := app.storage.User.Create(t.Context(), nil, u)
+	assert.NoError(t, err)
+
+	var passwordIsNull bool
+	err = db.QueryRowContext(
+		t.Context(),
+		`SELECT password IS NULL FROM users WHERE email = $1`,
+		"oauth_only@example.com",
+	).Scan(&passwordIsNull)
+	assert.NoError(t, err)
+	assert.True(t, passwordIsNull)
+}
+
+// Test_Integration_RequireVerifiedEmailSuppressesAutoLogin verifies that when
+// verification is required, registration does not auto-login the new (unverified)
+// user even if LoginAfterRegister is enabled.
+func Test_Integration_RequireVerifiedEmailSuppressesAutoLogin(t *testing.T) {
+	c := NewTestAuthConfig(nil, &SessionConfig{
+		LoginAfterRegister:   true,
+		RequireVerifiedEmail: true,
+	}, nil)
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := "needs_verify@example.com"
+	app.mailer.On("SendVerificationEmail", userEmail, mock.Anything).Return(nil)
+
+	helper := newTestHelper(t, app)
+	_, rr := helper.CreateUser(userEmail, "Password123!")
+
+	assert.Equal(t, http.StatusCreated, rr.Code)
+	assert.Nil(t, helper.GetSessionCookie(rr)) // no session despite LoginAfterRegister
+}
+
+// Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin verifies that with
+// RequireVerifiedEmail enabled, an unverified user is blocked from password login
+// while a verified user is still allowed.
+func Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin(t *testing.T) {
+	c := NewTestAuthConfig(nil, &SessionConfig{RequireVerifiedEmail: true}, nil)
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	helper := newTestHelper(t, app)
+
+	// Unverified user is blocked with 403.
+	_, rr := helper.LoginAs(UnverifiedUser)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	// Verified user can still log in.
+	_, rr = helper.LoginAs(DefaultUser)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+// Test_Integration_PasswordResetTokenIsSingleUse verifies that a verification
+// token is consumed atomically: once a reset succeeds, the same token cannot be
+// replayed, and the rejected attempt has no side effects.
+func Test_Integration_PasswordResetTokenIsSingleUse(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := "single_use@example.com"
+	app.mailer.On("SendVerificationEmail", mock.Anything, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordResetEmail", userEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordChangedEmail", userEmail).Return(nil)
+
+	helper := newTestHelper(t, app)
+	user, _ := helper.CreateUser(userEmail, "Password123!")
+
+	// Request a reset link and grab the emailed token.
+	body, err := json.Marshal(map[string]string{"email": user.Email})
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	token := app.mailer.Calls[1].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	completeReset := func(newPassword string) *httptest.ResponseRecorder {
+		b, err := json.Marshal(map[string]string{
+			"password":        newPassword,
+			"confirmPassword": newPassword,
+		})
+		assert.NoError(t, err)
+		r := httptest.NewRequest(http.MethodPut, "/auth/reset-password/"+token, bytes.NewReader(b))
+		w := httptest.NewRecorder()
+		app.Router().ServeHTTP(w, r)
+		return w
+	}
+
+	// First use succeeds.
+	assert.Equal(t, http.StatusOK, completeReset("FirstNewP@ss1!").Code)
+
+	// Reusing the same token must be rejected.
+	assert.Equal(t, http.StatusBadRequest, completeReset("SecondNewP@ss1!").Code)
+
+	// The password from the rejected second attempt must never have been applied.
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, user.Email)
+	assert.NoError(t, err)
+	assert.True(t, dbUser.Password.Compare("FirstNewP@ss1!"))
+	assert.False(t, dbUser.Password.Compare("SecondNewP@ss1!"))
+
+	// The "password changed" side effect must have happened exactly once.
+	app.mailer.AssertNumberOfCalls(t, "SendPasswordChangedEmail", 1)
+}
+
+// Test_Integration_PasswordResetInvalidatesExistingSessions verifies that
+// completing a password reset revokes all of the user's existing sessions.
+func Test_Integration_PasswordResetInvalidatesExistingSessions(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	helper := newTestHelper(t, app)
+
+	// Establish an existing session by logging in.
+	user, rr := helper.LoginAs(DefaultUser)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	oldSession := helper.GetSessionCookie(rr)
+	assert.NotNil(t, oldSession)
+
+	// Sanity: the session is valid before the reset.
+	session, err := app.storage.Session.Validate(t.Context(), nil, oldSession.Value)
+	assert.NoError(t, err)
+	assert.NotNil(t, session)
+
+	app.mailer.On("SendPasswordResetEmail", user.Email, mock.Anything).Return(nil)
+	app.mailer.On("SendPasswordChangedEmail", user.Email).Return(nil)
+
+	// Request a reset link and grab the emailed token.
+	body, err := json.Marshal(map[string]string{"email": user.Email})
+	assert.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, "/auth/reset-password", bytes.NewReader(body))
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	token := app.mailer.Calls[0].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	// Complete the reset.
+	body, err = json.Marshal(map[string]string{
+		"password":        "BrandNewP@ss1!",
+		"confirmPassword": "BrandNewP@ss1!",
+	})
+	assert.NoError(t, err)
+	req = httptest.NewRequest(http.MethodPut, "/auth/reset-password/"+token, bytes.NewReader(body))
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// The pre-existing session must now be invalid, both at the store level...
+	session, err = app.storage.Session.Validate(t.Context(), nil, oldSession.Value)
+	assert.Error(t, err)
+	assert.Nil(t, session)
+
+	// ...and end-to-end through the auth middleware.
+	req = httptest.NewRequest(http.MethodGet, "/auth/me", nil)
+	req.AddCookie(oldSession)
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }
