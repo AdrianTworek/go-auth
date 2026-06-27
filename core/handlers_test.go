@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -328,6 +329,36 @@ func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
 
+// Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect verifies that
+// when an EventEmailVerificationFailed hook returns a redirect, an invalid-token
+// verification responds with that redirect instead of the default JSON error. This
+// is the behaviour every framework adapter must share (previously only adapters that
+// buffer the response honored the redirect).
+func Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect(t *testing.T) {
+	const failedURL = "http://localhost:6969/front/failed"
+
+	c := NewTestAuthConfig(nil, nil, nil)
+	c.Hooks = &HookMap{
+		EventEmailVerificationFailed: HookList{
+			func(ctx context.Context, event *AuthEvent) error {
+				return NewHookRedirect(http.StatusFound, failedURL)
+			},
+		},
+	}
+
+	app, dbCtr, db := SetupIntegration(t, c)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	req := httptest.NewRequest(http.MethodGet, "/auth/verify/invalid_token", nil)
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	// The hook's redirect wins; the default "Invalid token" JSON is not written.
+	assert.Equal(t, http.StatusFound, rr.Code)
+	assert.Equal(t, failedURL, rr.Header().Get("Location"))
+	assert.NotContains(t, rr.Body.String(), "Invalid token")
+}
+
 func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -612,6 +643,57 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 	app.mailer.AssertExpectations(t)
 
 	assert.Equal(t, http.StatusFound, rr.Code)
+}
+
+// Test_Integration_CompleteMagicLinkVerifiesExistingUser verifies that completing
+// a magic link for an existing but unverified user marks their email as verified,
+// since possessing the link proves control of the inbox.
+func Test_Integration_CompleteMagicLinkVerifiesExistingUser(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	userEmail := TestUserData[UnverifiedUser].Email
+	app.mailer.On("SendMagicLinkEmail", userEmail, mock.Anything).Return(nil)
+
+	// Sanity check: the seeded user starts unverified.
+	var verifiedBefore bool
+	err := db.QueryRowContext(
+		t.Context(),
+		`SELECT email_verified FROM users WHERE email = $1`,
+		userEmail,
+	).Scan(&verifiedBefore)
+	assert.NoError(t, err)
+	assert.False(t, verifiedBefore)
+
+	// Request a magic link for the existing user.
+	jsonBody, err := json.Marshal(map[string]string{"email": userEmail})
+	assert.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/auth/magic-link", bytes.NewReader(jsonBody))
+	rr := httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Complete the magic link with the emailed token.
+	token := app.mailer.Calls[0].Arguments[1].(string)
+	assert.NotEmpty(t, token)
+
+	req = httptest.NewRequest(http.MethodGet, "/auth/magic-link/"+token, nil)
+	rr = httptest.NewRecorder()
+	app.Router().ServeHTTP(rr, req)
+
+	app.mailer.AssertExpectations(t)
+	assert.Equal(t, http.StatusFound, rr.Code)
+
+	// The user is now verified.
+	var verifiedAfter bool
+	err = db.QueryRowContext(
+		t.Context(),
+		`SELECT email_verified FROM users WHERE email = $1`,
+		userEmail,
+	).Scan(&verifiedAfter)
+	assert.NoError(t, err)
+	assert.True(t, verifiedAfter)
 }
 
 // Test_Integration_UserWithoutPasswordStoresNull verifies that a user created

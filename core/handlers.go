@@ -75,7 +75,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 
 		if err != nil && errors.Is(err, store.ErrDuplicateEmail) {
-			writeJSONError(w, http.StatusBadRequest, "Email already taken")
+			writeJSONError(w, http.StatusBadRequest, "An account with this email already exists")
 			return
 		}
 
@@ -216,7 +216,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		}
 
 		if ac.config.Session.RequireVerifiedEmail && !user.EmailVerified {
-			writeJSONError(w, http.StatusForbidden, "Email not verified")
+			writeJSONError(w, http.StatusForbidden, "You need to verify your email before logging in. Please check your email for a verification link.")
 			return
 		}
 
@@ -314,26 +314,45 @@ func (ac *AuthClient) LogoutHandler() http.HandlerFunc {
 
 func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// On failure we don't write the response immediately. Instead we record the
+		// default JSON error and let the deferred block give an
+		// EventEmailVerificationFailed hook the first chance to respond (e.g. redirect
+		// to a "verification failed" page). Writing eagerly here would race the hook's
+		// write: some adapters buffer the response and honor the later redirect, others
+		// commit the JSON first, so behaviour differed across frameworks. Deferring the
+		// write keeps every adapter consistent.
 		verificationFailed := false
+		failStatus, failMessage := 0, ""
+		fail := func(status int, message string) {
+			verificationFailed = true
+			failStatus, failMessage = status, message
+		}
+		failServer := func(err error) {
+			slog.Error("request failed", "method", r.Method, "path", r.URL.Path, "error", err)
+			fail(http.StatusInternalServerError, "Internal Server Error")
+		}
 
-		// TODO: Figure out if it can be done better in defer if someone wants to respond with
-		// a custom response from hook function
 		defer func() {
-			if verificationFailed {
-				_, err := ac.hookStore.Trigger(
-					r.Context(),
-					NewAuthEvent(EventEmailVerificationFailed, w, r, nil),
-				)
-				if err != nil {
-					slog.Error("email verification failed hook resulted in error", "error", err.Error())
-				}
+			if !verificationFailed {
+				return
+			}
+			cont, err := ac.hookStore.Trigger(
+				r.Context(),
+				NewAuthEvent(EventEmailVerificationFailed, w, r, nil),
+			)
+			if err != nil {
+				slog.Error("email verification failed hook resulted in error", "error", err.Error())
+			}
+			// Fall back to the default JSON error only when no hook handled the
+			// response (no hook registered, or one returned a plain error).
+			if cont || err != nil {
+				writeJSONError(w, failStatus, failMessage)
 			}
 		}()
 
 		tokenStr := extractor.GetParam("token")
 		if tokenStr == "" {
-			verificationFailed = true
-			writeJSONError(w, http.StatusBadRequest, "Token is required")
+			fail(http.StatusBadRequest, "Token is required")
 			return
 		}
 
@@ -347,8 +366,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 			),
 		)
 		if err != nil {
-			verificationFailed = true
-			serverError(w, r, err)
+			failServer(err)
 			return
 		}
 		if !cont {
@@ -357,8 +375,7 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 
 		tx, err := ac.store.Transaction.Begin()
 		if err != nil {
-			verificationFailed = true
-			serverError(w, r, err)
+			failServer(err)
 			return
 		}
 
@@ -373,35 +390,30 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		// Atomically validate and consume the token; a rollback below restores it.
 		token, err := ac.store.Verification.Consume(r.Context(), tx, tokenStr, auth.EmailVerificationIntent)
 		if err != nil {
-			verificationFailed = true
-			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			fail(http.StatusBadRequest, "Invalid token")
 			return
 		}
 		if !token.UserID.Valid {
-			verificationFailed = true
-			writeJSONError(w, http.StatusInternalServerError, "Invalid token")
+			fail(http.StatusInternalServerError, "Invalid token")
 			return
 		}
 
 		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
 		if err != nil {
-			verificationFailed = true
-			serverError(w, r, err)
+			failServer(err)
 			return
 		}
 
 		user.EmailVerified = true
 		_, err = ac.store.User.Update(r.Context(), tx, user)
 		if err != nil {
-			verificationFailed = true
-			serverError(w, r, err)
+			failServer(err)
 			return
 		}
 
 		err = ac.store.Transaction.Commit(tx)
 		if err != nil {
-			verificationFailed = true
-			serverError(w, r, err)
+			failServer(err)
 			return
 		}
 
@@ -590,6 +602,17 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 				}
 
 			} else {
+				ac.FailedMagicLinkRedirect(w, r)
+				return
+			}
+		}
+
+		// Completing a magic link proves control of the inbox, which is the same
+		// proof email verification relies on. Mark existing users verified too
+		// (new users above are already created verified).
+		if !user.EmailVerified {
+			user.EmailVerified = true
+			if user, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
 				ac.FailedMagicLinkRedirect(w, r)
 				return
 			}

@@ -23,18 +23,19 @@ func init() {
 }
 
 func beforeLogin(ctx context.Context, event *core.AuthEvent) error {
-	slog.Info("User logged in this is from the after login hook", "event", event)
+	slog.Info("this is from the before login hook", "event", event)
 	return nil
 }
 
 func afterLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("this is from the after login hook", "event", event)
 	return &core.HookRedirect{
 		URL:    "http://localhost:8080/front/success",
 		Status: http.StatusFound,
 	}
 }
 
-func emailVerfificationFailed(ctx context.Context, event *core.AuthEvent) error {
+func emailVerificationFailed(ctx context.Context, event *core.AuthEvent) error {
 	slog.Info("email verification failed")
 	return &core.HookRedirect{
 		URL:    "http://localhost:8080/front/failed",
@@ -90,7 +91,7 @@ func main() {
 				afterLogin,
 			},
 			core.EventEmailVerificationFailed: core.HookList{
-				emailVerfificationFailed,
+				emailVerificationFailed,
 			},
 		},
 	})
@@ -129,6 +130,7 @@ func main() {
 		`
 		_, _ = w.Write([]byte(html))
 	})
+
 	chi_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
