@@ -1,22 +1,46 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
-	gorilla_adapter "github.com/AdrianTworek/go-auth/adapters/gorilla"
-	"github.com/AdrianTworek/go-auth/core"
-	"github.com/AdrianTworek/go-auth/examples"
 	"github.com/gorilla/mux"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/github"
 	"github.com/markbates/goth/providers/google"
 	"github.com/spf13/viper"
+
+	gorilla_adapter "github.com/AdrianTworek/go-auth/adapters/gorilla"
+	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/examples"
 )
 
 func init() {
 	examples.SetupEnv()
+}
+
+func beforeLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("this is from the before login hook", "event", event)
+	return nil
+}
+
+func afterLogin(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("this is from the after login hook", "event", event)
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/success",
+		Status: http.StatusFound,
+	}
+}
+
+func emailVerificationFailed(ctx context.Context, event *core.AuthEvent) error {
+	slog.Info("email verification failed")
+	return &core.HookRedirect{
+		URL:    "http://localhost:8080/front/failed",
+		Status: http.StatusFound,
+	}
 }
 
 func main() {
@@ -27,9 +51,12 @@ func main() {
 			Dsn: viper.GetString("DSN"),
 		},
 		Session: &core.SessionConfig{
-			MagicLinkSuccesfulRedirectURL: "http://localhost:8080/front/success",
-			MagicLinkFailedRedirectURL:    "http://localhost:8080/front/failed",
-			LoginAfterRegister:            true,
+			MagicLinkSuccessfulRedirectURL: "http://localhost:8080/front/success",
+			MagicLinkFailedRedirectURL:     "http://localhost:8080/front/failed",
+			LoginAfterRegister:             true,
+			// This example runs over plain HTTP, so disable Secure to let the
+			// browser send the session cookie. Remove this in production (HTTPS).
+			CookieSecure: core.Ptr(false),
 		},
 		OAuth: &core.OAuthConfig{
 			Providers: []goth.Provider{
@@ -54,8 +81,20 @@ func main() {
 				),
 			},
 		},
+		SessionSecret: viper.GetString("SESSION_SECRET"),
+		BaseURL:       "http://localhost:8080",
+		Hooks: &core.HookMap{
+			core.EventBeforeLogin: core.HookList{
+				beforeLogin,
+			},
+			core.EventAfterLogin: core.HookList{
+				afterLogin,
+			},
+			core.EventEmailVerificationFailed: core.HookList{
+				emailVerificationFailed,
+			},
+		},
 	})
-
 	if err != nil {
 		log.Fatalf("Error creating auth client: %v", err)
 	}
@@ -73,7 +112,7 @@ func main() {
 			</body>
 		</html>
 		`
-		w.Write([]byte(html))
+		_, _ = w.Write([]byte(html))
 	})
 
 	r.HandleFunc("/front/failed", func(w http.ResponseWriter, r *http.Request) {
@@ -89,11 +128,11 @@ func main() {
 			</body>
 		</html>
 		`
-		w.Write([]byte(html))
+		_, _ = w.Write([]byte(html))
 	})
 
 	gorilla_adapter.InitAuth(ac, r)
 
 	fmt.Println("🚀 Listening on port :8080")
-	http.ListenAndServe(":8080", r)
+	log.Fatal(http.ListenAndServe(":8080", r))
 }

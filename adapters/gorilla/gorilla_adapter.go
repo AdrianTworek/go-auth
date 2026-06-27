@@ -3,9 +3,10 @@ package gorilla_adapter
 import (
 	"net/http"
 
-	"github.com/AdrianTworek/go-auth/core"
 	"github.com/gorilla/mux"
 	"github.com/markbates/goth/gothic"
+
+	"github.com/AdrianTworek/go-auth/core"
 )
 
 type GorillaParamExtractor struct {
