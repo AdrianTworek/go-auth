@@ -7,8 +7,10 @@ updates:
       interval: 'weekly'
     open-pull-requests-limit: 10
     commit-message:
-      prefix: 'build'
-      prefix-development: 'build'
+      # `fix` so dependency bumps are releasing commits — release-please
+      # rolls them into a patch release automatically (no manual Release-As).
+      prefix: 'fix'
+      prefix-development: 'fix'
     groups:
       go-minor-patch:
         update-types: ['minor', 'patch']
