@@ -33,11 +33,13 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 		publicRouter.GET("/oauth/callback", gin.WrapH(ac.OAuthCallbackHandler()))
 	}
 
-	publicMagicLinkRouter := publicRouter.Group("/magic-link")
-	publicMagicLinkRouter.POST("/", gin.WrapH(ac.SendMagicLinkHandler()))
-	publicMagicLinkRouter.GET("/:token", func(c *gin.Context) {
-		ac.CompleteMagicLinkSignInHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
-	})
+	if ac.CanLoginWithMagicLink() {
+		publicMagicLinkRouter := publicRouter.Group("/magic-link")
+		publicMagicLinkRouter.POST("/", gin.WrapH(ac.SendMagicLinkHandler()))
+		publicMagicLinkRouter.GET("/:token", func(c *gin.Context) {
+			ac.CompleteMagicLinkSignInHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
+		})
+	}
 
 	publicResetPasswordRouter := publicRouter.Group("/reset-password")
 	publicResetPasswordRouter.POST("/", gin.WrapH(ac.SendPasswordResetLinkHandler()))

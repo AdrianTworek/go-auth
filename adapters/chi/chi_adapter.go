@@ -34,12 +34,14 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 			r.Get("/oauth/callback", ac.OAuthCallbackHandler())
 		}
 
-		r.Route("/magic-link", func(r chi.Router) {
-			r.Post("/", ac.SendMagicLinkHandler())
-			r.Get("/{token}", func(w http.ResponseWriter, r *http.Request) {
-				ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
+		if ac.CanLoginWithMagicLink() {
+			r.Route("/magic-link", func(r chi.Router) {
+				r.Post("/", ac.SendMagicLinkHandler())
+				r.Get("/{token}", func(w http.ResponseWriter, r *http.Request) {
+					ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
+				})
 			})
-		})
+		}
 
 		r.Route("/reset-password", func(r chi.Router) {
 			r.Post("/", ac.SendPasswordResetLinkHandler())

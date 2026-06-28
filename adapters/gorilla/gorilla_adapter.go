@@ -36,11 +36,13 @@ func InitAuth(ac *core.AuthClient, r *mux.Router) {
 		publicRouter.HandleFunc("/oauth/callback", ac.OAuthCallbackHandler()).Methods("GET")
 	}
 
-	publicRouter.HandleFunc("/magic-link", ac.SendMagicLinkHandler()).Methods("POST")
-	publicRouter.HandleFunc("/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		ac.CompleteMagicLinkSignInHandler(&GorillaParamExtractor{Vars: vars}).ServeHTTP(w, r)
-	}).Methods("GET")
+	if ac.CanLoginWithMagicLink() {
+		publicRouter.HandleFunc("/magic-link", ac.SendMagicLinkHandler()).Methods("POST")
+		publicRouter.HandleFunc("/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
+			vars := mux.Vars(r)
+			ac.CompleteMagicLinkSignInHandler(&GorillaParamExtractor{Vars: vars}).ServeHTTP(w, r)
+		}).Methods("GET")
+	}
 
 	publicRouter.HandleFunc("/reset-password", ac.SendPasswordResetLinkHandler()).Methods("POST")
 	publicRouter.HandleFunc("/reset-password/{token}", func(w http.ResponseWriter, r *http.Request) {

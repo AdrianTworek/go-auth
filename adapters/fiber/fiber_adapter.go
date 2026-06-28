@@ -33,11 +33,13 @@ func InitAuth(ac *core.AuthClient, r *fiber.App) {
 		publicRouter.Get("/oauth/callback", adaptor.HTTPHandlerFunc(ac.OAuthCallbackHandler()))
 	}
 
-	publicMagicLinkRouter := publicRouter.Group("/magic-link")
-	publicMagicLinkRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendMagicLinkHandler()))
-	publicMagicLinkRouter.Get("/:token", func(c *fiber.Ctx) error {
-		return adaptor.HTTPHandlerFunc(ac.CompleteMagicLinkSignInHandler(&FiberParamExtractor{Ctx: c}))(c)
-	})
+	if ac.CanLoginWithMagicLink() {
+		publicMagicLinkRouter := publicRouter.Group("/magic-link")
+		publicMagicLinkRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendMagicLinkHandler()))
+		publicMagicLinkRouter.Get("/:token", func(c *fiber.Ctx) error {
+			return adaptor.HTTPHandlerFunc(ac.CompleteMagicLinkSignInHandler(&FiberParamExtractor{Ctx: c}))(c)
+		})
+	}
 
 	publicResetPasswordRouter := publicRouter.Group("/reset-password")
 	publicResetPasswordRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendPasswordResetLinkHandler()))
