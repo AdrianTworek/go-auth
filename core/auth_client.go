@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/sessions"
 	"github.com/markbates/goth"
@@ -20,6 +21,17 @@ type AuthClient struct {
 	store      *store.Storage
 	hookStore  *HookStore
 	cookieOpts auth.CookieOptions
+	durations  resolvedDurations
+}
+
+// resolvedDurations holds the session and token lifetimes for an AuthClient with
+// all defaults already applied, so handlers and middleware never read raw config.
+type resolvedDurations struct {
+	session           time.Duration
+	refreshThreshold  time.Duration
+	emailVerification time.Duration
+	passwordReset     time.Duration
+	magicLink         time.Duration
 }
 
 // Checks if mailer is configured and magic link redirect urls are also provided
@@ -86,6 +98,40 @@ func resolveCookieOptions(s *SessionConfig) auth.CookieOptions {
 	return opts
 }
 
+// resolveDurations builds the effective session and token lifetimes, applying the
+// library defaults for anything the consumer left at zero. The slide threshold
+// defaults to half the (resolved) session duration.
+func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
+	d := resolvedDurations{
+		session:           auth.DefaultSessionDuration,
+		emailVerification: auth.DefaultTokenDuration,
+		passwordReset:     auth.DefaultTokenDuration,
+		magicLink:         auth.DefaultTokenDuration,
+	}
+
+	if s != nil && s.Duration > 0 {
+		d.session = s.Duration
+	}
+	d.refreshThreshold = d.session / 2
+	if s != nil && s.RefreshThreshold > 0 {
+		d.refreshThreshold = s.RefreshThreshold
+	}
+
+	if t != nil {
+		if t.EmailVerification > 0 {
+			d.emailVerification = t.EmailVerification
+		}
+		if t.PasswordReset > 0 {
+			d.passwordReset = t.PasswordReset
+		}
+		if t.MagicLink > 0 {
+			d.magicLink = t.MagicLink
+		}
+	}
+
+	return d
+}
+
 func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	// Default the session config so cookie/option resolution is always safe.
 	if config.Session == nil {
@@ -128,11 +174,43 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		store:      store.NewStorage(db),
 		hookStore:  hookStore,
 		cookieOpts: resolveCookieOptions(config.Session),
+		durations:  resolveDurations(config.Session, config.Tokens),
 	}, nil
 }
 
-func (ac *AuthClient) newSessionCookie(token string) *http.Cookie {
-	return auth.NewSessionCookie(token, ac.cookieOpts)
+func (ac *AuthClient) newSessionCookie(token string, expiresAt time.Time) *http.Cookie {
+	return auth.NewSessionCookie(token, expiresAt, ac.cookieOpts)
+}
+
+// sessionExpiry returns the absolute expiry for a freshly created or refreshed
+// session, based on the configured session duration.
+func (ac *AuthClient) sessionExpiry() time.Time {
+	return time.Now().Add(ac.durations.session)
+}
+
+// tokenExpiry returns the absolute expiry for an emailed single-use token of the
+// given intent, based on the configured per-intent token durations.
+func (ac *AuthClient) tokenExpiry(intent auth.VerificationIntent) time.Time {
+	var d time.Duration
+	switch intent {
+	case auth.EmailVerificationIntent:
+		d = ac.durations.emailVerification
+	case auth.PasswordResetIntent:
+		d = ac.durations.passwordReset
+	case auth.MagicLinkIntent:
+		d = ac.durations.magicLink
+	default:
+		d = auth.DefaultTokenDuration
+	}
+	return time.Now().Add(d)
+}
+
+// newVerification builds a verification row with its expiry already set from the
+// configured token durations, so callers can't accidentally leave it unset.
+func (ac *AuthClient) newVerification(intent auth.VerificationIntent, email, userID *auth.NullString) *store.Verification {
+	v := store.NewVerification(intent, email, userID)
+	v.ExpiresAt = ac.tokenExpiry(intent)
+	return v
 }
 
 func (ac *AuthClient) deleteSessionCookie() *http.Cookie {

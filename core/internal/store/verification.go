@@ -11,8 +11,6 @@ import (
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
-var TokenDuration = 5 * time.Minute
-
 type Verification struct {
 	ID        string                  `json:"id" db:"id"`
 	Intent    auth.VerificationIntent `json:"intent" db:"intent"`
@@ -56,8 +54,9 @@ func (s *VerificationStore) Create(ctx context.Context, tx *sqlx.Tx, verificatio
 		return "", err
 	}
 	// Store only the hash; the raw token is returned to the caller (emailed to the user).
+	// ExpiresAt is provided by the caller (AuthClient) so token-lifetime policy lives
+	// in one place rather than being overridden here.
 	verification.Value = auth.HashToken(verificationToken)
-	verification.ExpiresAt = time.Now().Add(TokenDuration)
 
 	if tx != nil {
 		_, err = tx.NamedExecContext(ctx, query, verification)

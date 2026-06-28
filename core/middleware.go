@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 	"time"
-
-	"github.com/AdrianTworek/go-auth/core/internal/auth"
 )
 
 func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
@@ -27,14 +25,15 @@ func (ac *AuthClient) AuthMiddleware() func(next http.Handler) http.Handler {
 			// tracked so downstream handlers (e.g. logout) act on the current token
 			// even after a rotation.
 			effectiveToken := token.Value
-			if time.Until(session.ExpiresAt) < auth.SessionRefreshThreshold {
-				newToken, err := ac.store.Session.Refresh(r.Context(), nil, token.Value)
+			if time.Until(session.ExpiresAt) < ac.durations.refreshThreshold {
+				newExpiresAt := ac.sessionExpiry()
+				newToken, err := ac.store.Session.Refresh(r.Context(), nil, token.Value, newExpiresAt)
 				if err != nil {
 					serverError(w, r, err)
 					return
 				}
 
-				http.SetCookie(w, ac.newSessionCookie(newToken))
+				http.SetCookie(w, ac.newSessionCookie(newToken, newExpiresAt))
 				effectiveToken = newToken
 			}
 

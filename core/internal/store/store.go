@@ -26,7 +26,7 @@ type Storage struct {
 	Session interface {
 		Create(ctx context.Context, tx *sqlx.Tx, session *Session) (token string, err error)
 		Validate(ctx context.Context, tx *sqlx.Tx, token string) (*Session, error)
-		Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string) (string, error)
+		Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string, expiresAt time.Time) (string, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
 		DeleteExpired(ctx context.Context) error
