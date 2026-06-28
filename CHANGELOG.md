@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.3.0](https://github.com/AdrianTworek/go-auth/compare/v1.2.0...v1.3.0) (2026-06-28)
+
+
+### Features
+
+* **core:** configurable verified-email policy, longer passwords, TEXT user_agent ([9f88595](https://github.com/AdrianTworek/go-auth/commit/9f885955fa4cfd8da3773ba0e574cf0e0e29ee5e))
+* **core:** secure-by-default session cookie and OAuth secret validation, examples update ([7960974](https://github.com/AdrianTworek/go-auth/commit/796097435b3cb566f3b9975a3d94e92ab52f73f3))
+* **examples:** add gorilla mux ([574da64](https://github.com/AdrianTworek/go-auth/commit/574da6468c6bbf03ac66c8841037090212b7b7ae))
+* **examples:** add net/http standard library example and adapter ([d0f292d](https://github.com/AdrianTworek/go-auth/commit/d0f292d724f01c65d4e9e1c012456e5013c7e843))
+
+
+### Bug Fixes
+
+* **core:** atomic single-use tokens and session revocation on password reset ([1d5867a](https://github.com/AdrianTworek/go-auth/commit/1d5867a5948ed70d2e1deb5a616f05aa7ede513c))
+* **core:** honor email-verification-failed hook and verify magic-link users ([5ad96e5](https://github.com/AdrianTworek/go-auth/commit/5ad96e540f8ce7d33fe95754a006e356c6aab361))
+* **core:** OAuth account-linking panic, typo fixes, and broader test coverage ([9677ce5](https://github.com/AdrianTworek/go-auth/commit/9677ce51bf507fbd8eb853468922e6758e105def))
+* **core:** stop leaking internal errors and reduce account enumeration ([6b20db2](https://github.com/AdrianTworek/go-auth/commit/6b20db2e9af0023fe0ec02102b8083eff7cb46b4))
+* **core:** store session and verification tokens as SHA-256 hashes ([dc4e1bb](https://github.com/AdrianTworek/go-auth/commit/dc4e1bb0dc9c46956c12a7652e353e0ff4963767))
+* **core:** update session config default and improve error handling in handlers ([b9d4992](https://github.com/AdrianTworek/go-auth/commit/b9d4992535cb15aaf0049eedf7ca4238d0070550))
+
 ## [1.2.0](https://github.com/AdrianTworek/go-auth/compare/v1.1.0...v1.2.0) (2026-06-07)
 
 
