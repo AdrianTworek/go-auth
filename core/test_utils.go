@@ -95,6 +95,7 @@ func (a *TestApp) Router() *chi.Mux {
 		},
 		Mailer:        a.mailer,
 		Session:       a.config.Session,
+		Tokens:        a.config.Tokens,
 		OAuth:         a.config.OAuth,
 		Hooks:         a.config.Hooks,
 		BaseURL:       a.config.BaseURL,

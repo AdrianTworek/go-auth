@@ -16,12 +16,15 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-var (
-	SessionDuration         = 7 * 24 * time.Hour
-	SessionRefreshThreshold = SessionDuration / 2
-)
-
 const (
+	// DefaultSessionDuration is the fallback session lifetime used when
+	// SessionConfig.Duration is left unset.
+	DefaultSessionDuration = 7 * 24 * time.Hour
+	// DefaultTokenDuration is the fallback lifetime for emailed single-use tokens
+	// (email verification, password reset, magic link) when the matching
+	// TokenConfig field is left unset.
+	DefaultTokenDuration = 5 * time.Minute
+
 	SessionTokenBytes = 32
 	EmailTokenBytes   = 64
 )
@@ -248,8 +251,8 @@ func baseCookie(token string, expiresAt time.Time, opts CookieOptions) *http.Coo
 	}
 }
 
-func NewSessionCookie(token string, opts CookieOptions) *http.Cookie {
-	return baseCookie(token, time.Now().Add(SessionDuration), opts)
+func NewSessionCookie(token string, expiresAt time.Time, opts CookieOptions) *http.Cookie {
+	return baseCookie(token, expiresAt, opts)
 }
 
 func DeleteSessionCookie(opts CookieOptions) *http.Cookie {

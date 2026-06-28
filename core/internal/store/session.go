@@ -38,8 +38,9 @@ func (s *SessionStore) Create(ctx context.Context, tx *sqlx.Tx, session *Session
 		return "", err
 	}
 	// Store only the hash; the raw token is returned to the caller (set as the cookie).
+	// ExpiresAt is provided by the caller (AuthClient) so session-lifetime policy
+	// lives in one place rather than being overridden here.
 	session.Token = auth.HashToken(token)
-	session.ExpiresAt = time.Now().Add(auth.SessionDuration)
 
 	if tx != nil {
 		_, err = tx.NamedExecContext(ctx, query, session)
@@ -96,7 +97,7 @@ func (s *SessionStore) Delete(ctx context.Context, tx *sqlx.Tx, token string) er
 	return nil
 }
 
-func (s *SessionStore) Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string) (string, error) {
+func (s *SessionStore) Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string, expiresAt time.Time) (string, error) {
 	query := `
 		UPDATE sessions
 		SET token = $1, expires_at = $2
@@ -111,7 +112,7 @@ func (s *SessionStore) Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string
 		return "", err
 	}
 
-	_, err = s.db.ExecContext(ctx, query, auth.HashToken(token), time.Now().Add(auth.SessionDuration), auth.HashToken(oldToken))
+	_, err = s.db.ExecContext(ctx, query, auth.HashToken(token), expiresAt, auth.HashToken(oldToken))
 	if err != nil {
 		return "", err
 	}

@@ -87,7 +87,9 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 
 		// Suppress auto-login when verification is required: the new user is unverified.
 		var token string
+		var sessionExpiresAt time.Time
 		if ac.config.Session.LoginAfterRegister && !ac.config.Session.RequireVerifiedEmail {
+			sessionExpiresAt = ac.sessionExpiry()
 			token, err = ac.store.Session.Create(
 				r.Context(),
 				tx,
@@ -95,7 +97,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 					UserID:    user.ID,
 					IPAddress: r.RemoteAddr,
 					UserAgent: r.UserAgent(),
-					ExpiresAt: time.Now().Add(24 * time.Hour),
+					ExpiresAt: sessionExpiresAt,
 				},
 			)
 			if err != nil {
@@ -107,7 +109,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			tx,
-			store.NewVerification(
+			ac.newVerification(
 				auth.EmailVerificationIntent,
 				nil,
 				auth.NewNullString(user.ID),
@@ -131,7 +133,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 
 		if token != "" && ac.config.Session.LoginAfterRegister {
-			cookie := ac.newSessionCookie(token)
+			cookie := ac.newSessionCookie(token, sessionExpiresAt)
 			http.SetCookie(w, cookie)
 		}
 
@@ -220,6 +222,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
+		sessionExpiresAt := ac.sessionExpiry()
 		token, err := ac.store.Session.Create(
 			r.Context(),
 			nil,
@@ -227,7 +230,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 				UserID:    user.ID,
 				IPAddress: r.RemoteAddr,
 				UserAgent: r.UserAgent(),
-				ExpiresAt: time.Now().Add(24 * time.Hour),
+				ExpiresAt: sessionExpiresAt,
 			},
 		)
 		if err != nil {
@@ -235,7 +238,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
-		cookie := ac.newSessionCookie(token)
+		cookie := ac.newSessionCookie(token, sessionExpiresAt)
 		http.SetCookie(w, cookie)
 
 		cont, err = ac.hookStore.Trigger(
@@ -483,7 +486,7 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			tx,
-			store.NewVerification(
+			ac.newVerification(
 				auth.MagicLinkIntent,
 				auth.NewNullString(req.Email),
 				nil,
@@ -618,11 +621,12 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			}
 		}
 
+		sessionExpiresAt := ac.sessionExpiry()
 		sessionToken, err := ac.store.Session.Create(r.Context(), tx, &store.Session{
 			UserID:    user.ID,
 			IPAddress: r.RemoteAddr,
 			UserAgent: r.UserAgent(),
-			ExpiresAt: time.Now().Add(24 * time.Hour),
+			ExpiresAt: sessionExpiresAt,
 		})
 		if err != nil {
 			ac.FailedMagicLinkRedirect(w, r)
@@ -635,7 +639,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			return
 		}
 
-		cookie := ac.newSessionCookie(sessionToken)
+		cookie := ac.newSessionCookie(sessionToken, sessionExpiresAt)
 		http.SetCookie(w, cookie)
 
 		ac.SuccessMagicLinkRedirect(w, r)
@@ -693,7 +697,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 		verificationToken, err := ac.store.Verification.Create(
 			r.Context(),
 			tx,
-			store.NewVerification(
+			ac.newVerification(
 				auth.PasswordResetIntent,
 				nil,
 				auth.NewNullString(user.ID),
@@ -908,6 +912,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			}
 		}
 
+		sessionExpiresAt := ac.sessionExpiry()
 		token, err := ac.store.Session.Create(
 			r.Context(),
 			tx,
@@ -915,7 +920,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 				UserID:    user.ID,
 				IPAddress: r.RemoteAddr,
 				UserAgent: r.UserAgent(),
-				ExpiresAt: time.Now().Add(24 * time.Hour),
+				ExpiresAt: sessionExpiresAt,
 			},
 		)
 		if err != nil {
@@ -927,7 +932,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			return
 		}
 
-		http.SetCookie(w, ac.newSessionCookie(token))
+		http.SetCookie(w, ac.newSessionCookie(token, sessionExpiresAt))
 
 		cont, err = ac.hookStore.Trigger(
 			r.Context(),

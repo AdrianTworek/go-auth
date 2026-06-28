@@ -2,6 +2,7 @@ package core
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/markbates/goth"
 
@@ -17,6 +18,7 @@ func Ptr[T any](v T) *T {
 type AuthConfig struct {
 	Db            *DatabaseConfig
 	Session       *SessionConfig
+	Tokens        *TokenConfig
 	OAuth         *OAuthConfig
 	Mailer        mailer.Mailer
 	Hooks         *HookMap
@@ -39,6 +41,20 @@ type DatabaseConfig struct {
 }
 
 type SessionConfig struct {
+	// Duration is how long a session is valid for. It sets both the session's
+	// server-side expiry and the session cookie's lifetime. When zero the library
+	// default is used.
+	//
+	// Default: 7 days
+	Duration time.Duration
+	// RefreshThreshold controls sliding sessions: on an authenticated request, when
+	// the session's remaining lifetime drops below this threshold, the middleware
+	// rotates the token and extends the session by a full Duration. When zero it
+	// defaults to half of Duration. Set it larger than Duration to refresh on every
+	// request, or leave it at the default for typical sliding behaviour.
+	//
+	// Default: Duration / 2
+	RefreshThreshold time.Duration
 	// LoginAfterRegister specifies whether to log in the user after registration.
 	//
 	// Default: false
@@ -86,4 +102,23 @@ type SessionConfig struct {
 	//
 	// Default: "session"
 	CookieName string
+}
+
+// TokenConfig sets how long the single-use tokens emailed to users stay valid.
+// Each field maps to one verification flow; a zero value falls back to the library
+// default. Keep these short — they bound the window an intercepted link is usable.
+type TokenConfig struct {
+	// EmailVerification is the lifetime of the email-verification link sent on
+	// registration.
+	//
+	// Default: 5 minutes
+	EmailVerification time.Duration
+	// PasswordReset is the lifetime of the password-reset link.
+	//
+	// Default: 5 minutes
+	PasswordReset time.Duration
+	// MagicLink is the lifetime of the passwordless magic-link sign-in link.
+	//
+	// Default: 5 minutes
+	MagicLink time.Duration
 }
