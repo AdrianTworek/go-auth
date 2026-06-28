@@ -32,10 +32,12 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 		mux.Handle("GET /auth/oauth/callback", ac.OAuthCallbackHandler())
 	}
 
-	mux.Handle("POST /auth/magic-link", ac.SendMagicLinkHandler())
-	mux.HandleFunc("GET /auth/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
-		ac.CompleteMagicLinkSignInHandler(&StdHTTPParamExtractor{Req: r})(w, r)
-	})
+	if ac.CanLoginWithMagicLink() {
+		mux.Handle("POST /auth/magic-link", ac.SendMagicLinkHandler())
+		mux.HandleFunc("GET /auth/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
+			ac.CompleteMagicLinkSignInHandler(&StdHTTPParamExtractor{Req: r})(w, r)
+		})
+	}
 
 	mux.Handle("POST /auth/reset-password", ac.SendPasswordResetLinkHandler())
 	mux.HandleFunc("PUT /auth/reset-password/{token}", func(w http.ResponseWriter, r *http.Request) {

@@ -35,10 +35,12 @@ func InitAuth(ac *core.AuthClient, r *echo.Echo) {
 		publicRouter.GET("/oauth/callback", echo.WrapHandler(ac.OAuthCallbackHandler()))
 	}
 
-	publicRouter.POST("/magic-link", echo.WrapHandler(ac.SendMagicLinkHandler()))
-	publicRouter.GET("/magic-link/:token", func(c echo.Context) error {
-		return echo.WrapHandler(ac.CompleteMagicLinkSignInHandler(&EchoParamExtractor{Ctx: c}))(c)
-	})
+	if ac.CanLoginWithMagicLink() {
+		publicRouter.POST("/magic-link", echo.WrapHandler(ac.SendMagicLinkHandler()))
+		publicRouter.GET("/magic-link/:token", func(c echo.Context) error {
+			return echo.WrapHandler(ac.CompleteMagicLinkSignInHandler(&EchoParamExtractor{Ctx: c}))(c)
+		})
+	}
 
 	publicRouter.POST("/reset-password", echo.WrapHandler(ac.SendPasswordResetLinkHandler()))
 	publicRouter.PUT("/reset-password/:token", func(c echo.Context) error {
