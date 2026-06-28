@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/AdrianTworek/go-auth/compare/v1.3.0...v1.3.1) (2026-06-28)
+
+
+### Miscellaneous Chores
+
+* release 1.3.1 ([887bb50](https://github.com/AdrianTworek/go-auth/commit/887bb506a5b917ae8278405fbe5fccf60aa55872))
+
 ## [1.3.0](https://github.com/AdrianTworek/go-auth/compare/v1.2.0...v1.3.0) (2026-06-28)
 
 
