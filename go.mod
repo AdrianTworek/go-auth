@@ -8,6 +8,7 @@ require (
 	github.com/go-playground/validator/v10 v10.26.0
 	github.com/gofiber/fiber/v2 v2.52.6
 	github.com/golang-migrate/migrate/v4 v4.18.3
+	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.1.1
 	github.com/gwatts/gin-adapter v1.0.0
 	github.com/jmoiron/sqlx v1.4.0
@@ -18,7 +19,8 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/testcontainers/testcontainers-go v0.37.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.37.0
-	golang.org/x/crypto v0.38.0
+	golang.org/x/crypto v0.45.0
+	golang.org/x/oauth2 v0.25.0
 )
 
 require (
@@ -55,7 +57,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/gorilla/context v1.1.1 // indirect
-	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
@@ -114,10 +115,9 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/net v0.40.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sys v0.33.0 // indirect
-	golang.org/x/text v0.25.0 // indirect
+	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/protobuf v1.36.6 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
