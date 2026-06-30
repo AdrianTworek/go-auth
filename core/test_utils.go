@@ -115,6 +115,7 @@ func (a *TestApp) Router() *chi.Mux {
 	r.Get(PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+	r.Post(PathResendVerification, ac.ResendVerificationHandler())
 
 	r.Post(PathSendMagicLink, ac.SendMagicLinkHandler())
 	r.Get(PathMagicLink, func(w http.ResponseWriter, r *http.Request) {

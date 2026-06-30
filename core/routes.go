@@ -9,17 +9,18 @@ import "strings"
 // Patterns use the "{name}" placeholder for path parameters; adapters for routers that
 // use ":name" syntax (gin, echo, fiber) translate with ColonParamPattern.
 const (
-	PathRegister          = "/auth/register"
-	PathLogin             = "/auth/login"
-	PathLogout            = "/auth/logout"
-	PathMe                = "/auth/me"
-	PathVerifyEmail       = "/auth/verify/{token}"
-	PathOAuthBegin        = "/auth/oauth"
-	PathOAuthCallback     = "/auth/oauth/callback"
-	PathSendMagicLink     = "/auth/magic-link"
-	PathMagicLink         = "/auth/magic-link/{token}"
-	PathSendPasswordReset = "/auth/reset-password"         // #nosec G101 -- URL path, not a credential
-	PathPasswordReset     = "/auth/reset-password/{token}" // #nosec G101 -- URL path, not a credential
+	PathRegister           = "/auth/register"
+	PathLogin              = "/auth/login"
+	PathLogout             = "/auth/logout"
+	PathMe                 = "/auth/me"
+	PathResendVerification = "/auth/resend-verification"
+	PathVerifyEmail        = "/auth/verify/{token}"
+	PathOAuthBegin         = "/auth/oauth"
+	PathOAuthCallback      = "/auth/oauth/callback"
+	PathSendMagicLink      = "/auth/magic-link"
+	PathMagicLink          = "/auth/magic-link/{token}"
+	PathSendPasswordReset  = "/auth/reset-password"         // #nosec G101 -- URL path, not a credential
+	PathPasswordReset      = "/auth/reset-password/{token}" // #nosec G101 -- URL path, not a credential
 )
 
 // ColonParamPattern converts a canonical "{name}" path pattern to the ":name" form

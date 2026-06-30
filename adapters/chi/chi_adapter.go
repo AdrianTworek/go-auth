@@ -30,6 +30,7 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 	r.Get(core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+	r.Post(core.PathResendVerification, ac.ResendVerificationHandler())
 
 	if ac.CanLoginWithOAuth() {
 		r.Get(core.PathOAuthBegin, gothic.BeginAuthHandler)

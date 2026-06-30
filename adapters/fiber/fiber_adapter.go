@@ -29,6 +29,7 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 	app.Get(core.ColonParamPattern(core.PathVerifyEmail), func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(ac.VerifyEmailHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
+	app.Post(core.PathResendVerification, adaptor.HTTPHandlerFunc(ac.ResendVerificationHandler()))
 
 	if ac.CanLoginWithOAuth() {
 		app.Get(core.PathOAuthBegin, adaptor.HTTPHandlerFunc(gothic.BeginAuthHandler))

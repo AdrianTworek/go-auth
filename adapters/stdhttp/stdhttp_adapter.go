@@ -27,6 +27,7 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 	mux.HandleFunc("GET "+core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 	})
+	mux.Handle("POST "+core.PathResendVerification, ac.ResendVerificationHandler())
 
 	if ac.CanLoginWithOAuth() {
 		mux.HandleFunc("GET "+core.PathOAuthBegin, gothic.BeginAuthHandler)

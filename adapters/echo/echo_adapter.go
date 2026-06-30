@@ -28,6 +28,7 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 	e.GET(core.ColonParamPattern(core.PathVerifyEmail), func(c echo.Context) error {
 		return echo.WrapHandler(ac.VerifyEmailHandler(&EchoParamExtractor{Ctx: c}))(c)
 	})
+	e.POST(core.PathResendVerification, echo.WrapHandler(ac.ResendVerificationHandler()))
 
 	if ac.CanLoginWithOAuth() {
 		e.GET(core.PathOAuthBegin, func(c echo.Context) error {
