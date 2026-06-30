@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/AdrianTworek/go-auth/compare/v1.3.2...v1.4.0) (2026-06-30)
+
+
+### Features
+
+* **adapters:** share canonical route paths and add a conformance test ([d4fa9ad](https://github.com/AdrianTworek/go-auth/commit/d4fa9ad82c6dddb77a50776bd765d3a1adb7e03c))
+* **adapters:** share canonical route paths and add a conformance test ([845c03c](https://github.com/AdrianTworek/go-auth/commit/845c03ca5814b00f30efd91f5e43404c61c7b3a6))
+* **core:** add resend-verification endpoint ([7d11e06](https://github.com/AdrianTworek/go-auth/commit/7d11e06e480a49c1f3ff53209d850c8be5ed0d63))
+* **core:** add resend-verification endpoint ([f0c0914](https://github.com/AdrianTworek/go-auth/commit/f0c09149a9856da24ee37d9e2c73ab1ccae0364f))
+* **core:** configurable session and token durations ([e279bf2](https://github.com/AdrianTworek/go-auth/commit/e279bf20a8eed9e6d452c66244985183fb21e2a1))
+* **core:** configurable session and token durations ([6d62bcc](https://github.com/AdrianTworek/go-auth/commit/6d62bcc80a41067b1fe4b5ed2a9fc62805e6acbe))
+
 ## [1.3.2](https://github.com/AdrianTworek/go-auth/compare/v1.3.1...v1.3.2) (2026-06-28)
 
 
