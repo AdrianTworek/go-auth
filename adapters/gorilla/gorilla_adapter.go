@@ -30,6 +30,7 @@ func InitAuth(ac *core.AuthClient, r *mux.Router) {
 	r.HandleFunc(core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&GorillaParamExtractor{Vars: mux.Vars(r)}).ServeHTTP(w, r)
 	}).Methods(http.MethodGet)
+	r.Handle(core.PathResendVerification, ac.ResendVerificationHandler()).Methods(http.MethodPost)
 
 	if ac.CanLoginWithOAuth() {
 		r.HandleFunc(core.PathOAuthBegin, gothic.BeginAuthHandler).Methods(http.MethodGet)

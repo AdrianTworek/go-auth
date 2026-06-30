@@ -108,6 +108,7 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodPost, core.PathRegister},
 		{http.MethodPost, core.PathLogin},
 		{http.MethodGet, withToken(core.PathVerifyEmail)},
+		{http.MethodPost, core.PathResendVerification},
 		{http.MethodGet, core.PathOAuthBegin + "?provider=github"},
 		{http.MethodGet, core.PathOAuthCallback},
 		{http.MethodPost, core.PathSendMagicLink},

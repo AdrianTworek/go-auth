@@ -28,6 +28,7 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	r.GET(core.ColonParamPattern(core.PathVerifyEmail), func(c *gin.Context) {
 		ac.VerifyEmailHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	})
+	r.POST(core.PathResendVerification, gin.WrapH(ac.ResendVerificationHandler()))
 
 	if ac.CanLoginWithOAuth() {
 		r.GET(core.PathOAuthBegin, gin.WrapF(gothic.BeginAuthHandler))

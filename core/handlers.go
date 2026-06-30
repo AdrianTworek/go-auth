@@ -17,6 +17,11 @@ import (
 // not the email is registered, so the response never reveals account existence.
 const genericResetMessage = "If an account with that email exists, a password reset link has been sent."
 
+// genericVerificationMessage is returned by the resend-verification endpoint for
+// every outcome, so the response never reveals whether the email is registered or
+// whether it is already verified.
+const genericVerificationMessage = "If an account with that email exists and is unverified, a verification link has been sent."
+
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 	type registerRequest struct {
 		Email           string `json:"email" validate:"required,min=3,max=255,email"`
@@ -438,6 +443,86 @@ func (ac *AuthClient) VerifyEmailHandler(extractor ParamExtractor) http.HandlerF
 		}
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Email verified successfully"})
+	}
+}
+
+// ResendVerificationHandler re-issues an email-verification link for an account that
+// registered but never verified (e.g. the original token expired). It is the recovery
+// path for the otherwise dead-ended unverified user. Every outcome returns the same
+// generic 200 so the endpoint can't be used to enumerate accounts or learn which
+// addresses are already verified.
+func (ac *AuthClient) ResendVerificationHandler() http.HandlerFunc {
+	type request struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req request
+		if err := readAndValidateJSON(w, r, &req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// respond is used for every non-error outcome so registered, unregistered and
+		// already-verified addresses are indistinguishable from the response.
+		respond := func() {
+			writeJSONResponse(w, http.StatusOK, map[string]any{"message": genericVerificationMessage})
+		}
+
+		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				respond()
+				return
+			}
+			serverError(w, r, err)
+			return
+		}
+
+		// Nothing to do for an already-verified account, but don't reveal that.
+		if user.EmailVerified {
+			respond()
+			return
+		}
+
+		tx, err := ac.store.Transaction.Begin()
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		defer func(tx *sqlx.Tx) {
+			if err != nil {
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
+			}
+		}(tx)
+
+		verificationToken, err := ac.store.Verification.Create(
+			r.Context(),
+			tx,
+			ac.newVerification(
+				auth.EmailVerificationIntent,
+				nil,
+				auth.NewNullString(user.ID),
+			),
+		)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.config.Mailer.SendVerificationEmail(user.Email, verificationToken); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.store.Transaction.Commit(tx); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		respond()
 	}
 }
 
