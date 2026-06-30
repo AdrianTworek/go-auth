@@ -21,39 +21,33 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 	if ac.CanLoginWithOAuth() {
 		ac.SetupGoth()
 	}
+	// Protected handlers are pre-wrapped with the auth middleware so /me and /logout
+	// need no special routing.
+	mw := ac.AuthMiddleware()
 
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", ac.RegisterHandler())
-		r.Post("/login", ac.LoginHandler())
-		r.Get("/verify/{token}", func(w http.ResponseWriter, r *http.Request) {
-			ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
-		})
-
-		if ac.CanLoginWithOAuth() {
-			r.Get("/oauth", gothic.BeginAuthHandler)
-			r.Get("/oauth/callback", ac.OAuthCallbackHandler())
-		}
-
-		if ac.CanLoginWithMagicLink() {
-			r.Route("/magic-link", func(r chi.Router) {
-				r.Post("/", ac.SendMagicLinkHandler())
-				r.Get("/{token}", func(w http.ResponseWriter, r *http.Request) {
-					ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
-				})
-			})
-		}
-
-		r.Route("/reset-password", func(r chi.Router) {
-			r.Post("/", ac.SendPasswordResetLinkHandler())
-			r.Put("/{token}", func(w http.ResponseWriter, r *http.Request) {
-				ac.CompletePasswordResetHandler(&ChiParamExtractor{Req: r})(w, r)
-			})
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(ac.AuthMiddleware())
-			r.Get("/me", ac.GetMeHandler())
-			r.Post("/logout", ac.LogoutHandler())
-		})
+	r.Post(core.PathRegister, ac.RegisterHandler())
+	r.Post(core.PathLogin, ac.LoginHandler())
+	r.Get(core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
+		ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+
+	if ac.CanLoginWithOAuth() {
+		r.Get(core.PathOAuthBegin, gothic.BeginAuthHandler)
+		r.Get(core.PathOAuthCallback, ac.OAuthCallbackHandler())
+	}
+
+	if ac.CanLoginWithMagicLink() {
+		r.Post(core.PathSendMagicLink, ac.SendMagicLinkHandler())
+		r.Get(core.PathMagicLink, func(w http.ResponseWriter, r *http.Request) {
+			ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
+		})
+	}
+
+	r.Post(core.PathSendPasswordReset, ac.SendPasswordResetLinkHandler())
+	r.Put(core.PathPasswordReset, func(w http.ResponseWriter, r *http.Request) {
+		ac.CompletePasswordResetHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
+
+	r.Method(http.MethodGet, core.PathMe, mw(ac.GetMeHandler()))
+	r.Method(http.MethodPost, core.PathLogout, mw(ac.LogoutHandler()))
 }

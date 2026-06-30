@@ -16,39 +16,37 @@ func (f *FiberParamExtractor) GetParam(key string) string {
 	return f.Ctx.Params(key)
 }
 
-func InitAuth(ac *core.AuthClient, r *fiber.App) {
+func InitAuth(ac *core.AuthClient, app *fiber.App) {
 	if ac.CanLoginWithOAuth() {
 		ac.SetupGoth()
 	}
+	// Protected handlers are pre-wrapped with the auth middleware, so fiber needs no
+	// HTTPMiddleware call.
+	mw := ac.AuthMiddleware()
 
-	publicRouter := r.Group("/auth")
-	publicRouter.Post("/register", adaptor.HTTPHandlerFunc(ac.RegisterHandler()))
-	publicRouter.Post("/login", adaptor.HTTPHandlerFunc(ac.LoginHandler()))
-	publicRouter.Get("/verify/:token", func(c *fiber.Ctx) error {
+	app.Post(core.PathRegister, adaptor.HTTPHandlerFunc(ac.RegisterHandler()))
+	app.Post(core.PathLogin, adaptor.HTTPHandlerFunc(ac.LoginHandler()))
+	app.Get(core.ColonParamPattern(core.PathVerifyEmail), func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(ac.VerifyEmailHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
 
 	if ac.CanLoginWithOAuth() {
-		publicRouter.Get("/oauth", adaptor.HTTPHandlerFunc(gothic.BeginAuthHandler))
-		publicRouter.Get("/oauth/callback", adaptor.HTTPHandlerFunc(ac.OAuthCallbackHandler()))
+		app.Get(core.PathOAuthBegin, adaptor.HTTPHandlerFunc(gothic.BeginAuthHandler))
+		app.Get(core.PathOAuthCallback, adaptor.HTTPHandlerFunc(ac.OAuthCallbackHandler()))
 	}
 
 	if ac.CanLoginWithMagicLink() {
-		publicMagicLinkRouter := publicRouter.Group("/magic-link")
-		publicMagicLinkRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendMagicLinkHandler()))
-		publicMagicLinkRouter.Get("/:token", func(c *fiber.Ctx) error {
+		app.Post(core.PathSendMagicLink, adaptor.HTTPHandlerFunc(ac.SendMagicLinkHandler()))
+		app.Get(core.ColonParamPattern(core.PathMagicLink), func(c *fiber.Ctx) error {
 			return adaptor.HTTPHandlerFunc(ac.CompleteMagicLinkSignInHandler(&FiberParamExtractor{Ctx: c}))(c)
 		})
 	}
 
-	publicResetPasswordRouter := publicRouter.Group("/reset-password")
-	publicResetPasswordRouter.Post("/", adaptor.HTTPHandlerFunc(ac.SendPasswordResetLinkHandler()))
-	publicResetPasswordRouter.Put("/:token", func(c *fiber.Ctx) error {
+	app.Post(core.PathSendPasswordReset, adaptor.HTTPHandlerFunc(ac.SendPasswordResetLinkHandler()))
+	app.Put(core.ColonParamPattern(core.PathPasswordReset), func(c *fiber.Ctx) error {
 		return adaptor.HTTPHandlerFunc(ac.CompletePasswordResetHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
 
-	protectedRouter := r.Group("/auth")
-	protectedRouter.Use(adaptor.HTTPMiddleware(ac.AuthMiddleware()))
-	protectedRouter.Get("/me", adaptor.HTTPHandlerFunc(ac.GetMeHandler()))
-	protectedRouter.Post("/logout", adaptor.HTTPHandlerFunc(ac.LogoutHandler()))
+	app.Get(core.PathMe, adaptor.HTTPHandler(mw(ac.GetMeHandler())))
+	app.Post(core.PathLogout, adaptor.HTTPHandler(mw(ac.LogoutHandler())))
 }

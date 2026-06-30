@@ -2,7 +2,6 @@ package gin_adapter
 
 import (
 	"github.com/gin-gonic/gin"
-	adapter "github.com/gwatts/gin-adapter"
 	"github.com/markbates/goth/gothic"
 
 	"github.com/AdrianTworek/go-auth/core"
@@ -20,35 +19,33 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	if ac.CanLoginWithOAuth() {
 		ac.SetupGoth()
 	}
+	// Protected handlers are pre-wrapped with the auth middleware, so gin needs no
+	// separate middleware adapter.
+	mw := ac.AuthMiddleware()
 
-	publicRouter := r.Group("/auth")
-	publicRouter.POST("/register", gin.WrapH(ac.RegisterHandler()))
-	publicRouter.POST("/login", gin.WrapH(ac.LoginHandler()))
-	publicRouter.GET("/verify/:token", func(c *gin.Context) {
+	r.POST(core.PathRegister, gin.WrapH(ac.RegisterHandler()))
+	r.POST(core.PathLogin, gin.WrapH(ac.LoginHandler()))
+	r.GET(core.ColonParamPattern(core.PathVerifyEmail), func(c *gin.Context) {
 		ac.VerifyEmailHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	})
 
 	if ac.CanLoginWithOAuth() {
-		publicRouter.GET("/oauth", gin.WrapF(gothic.BeginAuthHandler))
-		publicRouter.GET("/oauth/callback", gin.WrapH(ac.OAuthCallbackHandler()))
+		r.GET(core.PathOAuthBegin, gin.WrapF(gothic.BeginAuthHandler))
+		r.GET(core.PathOAuthCallback, gin.WrapH(ac.OAuthCallbackHandler()))
 	}
 
 	if ac.CanLoginWithMagicLink() {
-		publicMagicLinkRouter := publicRouter.Group("/magic-link")
-		publicMagicLinkRouter.POST("/", gin.WrapH(ac.SendMagicLinkHandler()))
-		publicMagicLinkRouter.GET("/:token", func(c *gin.Context) {
+		r.POST(core.PathSendMagicLink, gin.WrapH(ac.SendMagicLinkHandler()))
+		r.GET(core.ColonParamPattern(core.PathMagicLink), func(c *gin.Context) {
 			ac.CompleteMagicLinkSignInHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 		})
 	}
 
-	publicResetPasswordRouter := publicRouter.Group("/reset-password")
-	publicResetPasswordRouter.POST("/", gin.WrapH(ac.SendPasswordResetLinkHandler()))
-	publicResetPasswordRouter.PUT("/:token", func(c *gin.Context) {
+	r.POST(core.PathSendPasswordReset, gin.WrapH(ac.SendPasswordResetLinkHandler()))
+	r.PUT(core.ColonParamPattern(core.PathPasswordReset), func(c *gin.Context) {
 		ac.CompletePasswordResetHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	})
 
-	protectedRouter := r.Group("/auth")
-	protectedRouter.Use(adapter.Wrap(ac.AuthMiddleware()))
-	protectedRouter.GET("/me", gin.WrapH(ac.GetMeHandler()))
-	protectedRouter.POST("/logout", gin.WrapH(ac.LogoutHandler()))
+	r.GET(core.PathMe, gin.WrapH(mw(ac.GetMeHandler())))
+	r.POST(core.PathLogout, gin.WrapH(mw(ac.LogoutHandler())))
 }

@@ -105,33 +105,29 @@ func (a *TestApp) Router() *chi.Mux {
 		return nil
 	}
 
-	r.Route("/auth", func(r chi.Router) {
-		r.Post("/register", ac.RegisterHandler())
-		r.Post("/login", ac.LoginHandler())
-		r.Get("/verify/{token}", func(w http.ResponseWriter, r *http.Request) {
-			ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
-		})
+	// Mirrors the chi adapter, but inlined: the core package's tests can't import an
+	// adapter (it would form an import cycle), so this wires the same canonical path
+	// constants by hand. The real adapters are covered by the conformance test.
+	mw := ac.AuthMiddleware()
 
-		r.Route("/magic-link", func(r chi.Router) {
-			r.Post("/", ac.SendMagicLinkHandler())
-			r.Get("/{token}", func(w http.ResponseWriter, r *http.Request) {
-				ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
-			})
-		})
-
-		r.Route("/reset-password", func(r chi.Router) {
-			r.Post("/", ac.SendPasswordResetLinkHandler())
-			r.Put("/{token}", func(w http.ResponseWriter, r *http.Request) {
-				ac.CompletePasswordResetHandler(&ChiParamExtractor{Req: r})(w, r)
-			})
-		})
-
-		r.Group(func(r chi.Router) {
-			r.Use(ac.AuthMiddleware())
-			r.Get("/me", ac.GetMeHandler())
-			r.Post("/logout", ac.LogoutHandler())
-		})
+	r.Post(PathRegister, ac.RegisterHandler())
+	r.Post(PathLogin, ac.LoginHandler())
+	r.Get(PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
+		ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+
+	r.Post(PathSendMagicLink, ac.SendMagicLinkHandler())
+	r.Get(PathMagicLink, func(w http.ResponseWriter, r *http.Request) {
+		ac.CompleteMagicLinkSignInHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
+
+	r.Post(PathSendPasswordReset, ac.SendPasswordResetLinkHandler())
+	r.Put(PathPasswordReset, func(w http.ResponseWriter, r *http.Request) {
+		ac.CompletePasswordResetHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
+
+	r.With(mw).Get(PathMe, ac.GetMeHandler())
+	r.With(mw).Post(PathLogout, ac.LogoutHandler())
 
 	return r
 }
