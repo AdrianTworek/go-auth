@@ -20,31 +20,31 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 	if ac.CanLoginWithOAuth() {
 		ac.SetupGoth()
 	}
+	mw := ac.AuthMiddleware()
 
-	mux.Handle("POST /auth/register", ac.RegisterHandler())
-	mux.Handle("POST /auth/login", ac.LoginHandler())
-	mux.HandleFunc("GET /auth/verify/{token}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST "+core.PathRegister, ac.RegisterHandler())
+	mux.Handle("POST "+core.PathLogin, ac.LoginHandler())
+	mux.HandleFunc("GET "+core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 	})
 
 	if ac.CanLoginWithOAuth() {
-		mux.HandleFunc("GET /auth/oauth", gothic.BeginAuthHandler)
-		mux.Handle("GET /auth/oauth/callback", ac.OAuthCallbackHandler())
+		mux.HandleFunc("GET "+core.PathOAuthBegin, gothic.BeginAuthHandler)
+		mux.Handle("GET "+core.PathOAuthCallback, ac.OAuthCallbackHandler())
 	}
 
 	if ac.CanLoginWithMagicLink() {
-		mux.Handle("POST /auth/magic-link", ac.SendMagicLinkHandler())
-		mux.HandleFunc("GET /auth/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("POST "+core.PathSendMagicLink, ac.SendMagicLinkHandler())
+		mux.HandleFunc("GET "+core.PathMagicLink, func(w http.ResponseWriter, r *http.Request) {
 			ac.CompleteMagicLinkSignInHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 		})
 	}
 
-	mux.Handle("POST /auth/reset-password", ac.SendPasswordResetLinkHandler())
-	mux.HandleFunc("PUT /auth/reset-password/{token}", func(w http.ResponseWriter, r *http.Request) {
+	mux.Handle("POST "+core.PathSendPasswordReset, ac.SendPasswordResetLinkHandler())
+	mux.HandleFunc("PUT "+core.PathPasswordReset, func(w http.ResponseWriter, r *http.Request) {
 		ac.CompletePasswordResetHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 	})
 
-	authMiddleware := ac.AuthMiddleware()
-	mux.Handle("GET /auth/me", authMiddleware(ac.GetMeHandler()))
-	mux.Handle("POST /auth/logout", authMiddleware(ac.LogoutHandler()))
+	mux.Handle("GET "+core.PathMe, mw(ac.GetMeHandler()))
+	mux.Handle("POST "+core.PathLogout, mw(ac.LogoutHandler()))
 }

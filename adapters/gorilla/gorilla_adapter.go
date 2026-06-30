@@ -21,37 +21,33 @@ func InitAuth(ac *core.AuthClient, r *mux.Router) {
 	if ac.CanLoginWithOAuth() {
 		ac.SetupGoth()
 	}
+	// Protected handlers are pre-wrapped with the auth middleware, so /me and /logout
+	// need no subrouter with a Use call.
+	mw := ac.AuthMiddleware()
 
-	publicRouter := r.PathPrefix("/auth").Subrouter()
-	publicRouter.HandleFunc("/register", ac.RegisterHandler()).Methods("POST")
-	publicRouter.HandleFunc("/login", ac.LoginHandler()).Methods("POST")
-	publicRouter.HandleFunc("/verify/{token}", func(w http.ResponseWriter, r *http.Request) {
+	r.Handle(core.PathRegister, ac.RegisterHandler()).Methods(http.MethodPost)
+	r.Handle(core.PathLogin, ac.LoginHandler()).Methods(http.MethodPost)
+	r.HandleFunc(core.PathVerifyEmail, func(w http.ResponseWriter, r *http.Request) {
 		ac.VerifyEmailHandler(&GorillaParamExtractor{Vars: mux.Vars(r)}).ServeHTTP(w, r)
-	}).Methods("GET")
+	}).Methods(http.MethodGet)
 
 	if ac.CanLoginWithOAuth() {
-		publicRouter.HandleFunc("/oauth", func(w http.ResponseWriter, r *http.Request) {
-			gothic.BeginAuthHandler(w, r)
-		}).Methods("GET")
-		publicRouter.HandleFunc("/oauth/callback", ac.OAuthCallbackHandler()).Methods("GET")
+		r.HandleFunc(core.PathOAuthBegin, gothic.BeginAuthHandler).Methods(http.MethodGet)
+		r.Handle(core.PathOAuthCallback, ac.OAuthCallbackHandler()).Methods(http.MethodGet)
 	}
 
 	if ac.CanLoginWithMagicLink() {
-		publicRouter.HandleFunc("/magic-link", ac.SendMagicLinkHandler()).Methods("POST")
-		publicRouter.HandleFunc("/magic-link/{token}", func(w http.ResponseWriter, r *http.Request) {
-			vars := mux.Vars(r)
-			ac.CompleteMagicLinkSignInHandler(&GorillaParamExtractor{Vars: vars}).ServeHTTP(w, r)
-		}).Methods("GET")
+		r.Handle(core.PathSendMagicLink, ac.SendMagicLinkHandler()).Methods(http.MethodPost)
+		r.HandleFunc(core.PathMagicLink, func(w http.ResponseWriter, r *http.Request) {
+			ac.CompleteMagicLinkSignInHandler(&GorillaParamExtractor{Vars: mux.Vars(r)}).ServeHTTP(w, r)
+		}).Methods(http.MethodGet)
 	}
 
-	publicRouter.HandleFunc("/reset-password", ac.SendPasswordResetLinkHandler()).Methods("POST")
-	publicRouter.HandleFunc("/reset-password/{token}", func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
-		ac.CompletePasswordResetHandler(&GorillaParamExtractor{Vars: vars}).ServeHTTP(w, r)
-	}).Methods("PUT")
+	r.Handle(core.PathSendPasswordReset, ac.SendPasswordResetLinkHandler()).Methods(http.MethodPost)
+	r.HandleFunc(core.PathPasswordReset, func(w http.ResponseWriter, r *http.Request) {
+		ac.CompletePasswordResetHandler(&GorillaParamExtractor{Vars: mux.Vars(r)}).ServeHTTP(w, r)
+	}).Methods(http.MethodPut)
 
-	protectedRouter := r.PathPrefix("/auth").Subrouter()
-	protectedRouter.Use(ac.AuthMiddleware())
-	protectedRouter.HandleFunc("/me", ac.GetMeHandler()).Methods("GET")
-	protectedRouter.HandleFunc("/logout", ac.LogoutHandler()).Methods("POST")
+	r.Handle(core.PathMe, mw(ac.GetMeHandler())).Methods(http.MethodGet)
+	r.Handle(core.PathLogout, mw(ac.LogoutHandler())).Methods(http.MethodPost)
 }
