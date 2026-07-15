@@ -29,6 +29,9 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 		return echo.WrapHandler(ac.VerifyEmailHandler(&EchoParamExtractor{Ctx: c}))(c)
 	})
 	e.POST(core.PathResendVerification, echo.WrapHandler(ac.ResendVerificationHandler()))
+	e.GET(core.ColonParamPattern(core.PathConfirmEmailChange), func(c echo.Context) error {
+		return echo.WrapHandler(ac.ConfirmEmailChangeHandler(&EchoParamExtractor{Ctx: c}))(c)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		e.GET(core.PathOAuthBegin, func(c echo.Context) error {
@@ -52,4 +55,6 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 
 	e.GET(core.PathMe, echo.WrapHandler(mw(ac.GetMeHandler())))
 	e.POST(core.PathLogout, echo.WrapHandler(mw(ac.LogoutHandler())))
+	e.POST(core.PathChangePassword, echo.WrapHandler(mw(ac.ChangePasswordHandler())))
+	e.POST(core.PathChangeEmail, echo.WrapHandler(mw(ac.ChangeEmailHandler())))
 }

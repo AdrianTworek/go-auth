@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/jmoiron/sqlx"
@@ -894,6 +895,262 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 		}
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Password reset successfully"})
+	}
+}
+
+// ChangePasswordHandler lets an authenticated user change their password. It must be
+// mounted behind AuthMiddleware. The current password is required as re-authentication
+// so a hijacked session alone can't rotate the password. On success every other
+// session is revoked (the current device is re-issued a fresh session) and the account
+// is notified by email.
+func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
+	type request struct {
+		CurrentPassword string `json:"currentPassword" validate:"required"`
+		NewPassword     string `json:"newPassword" validate:"required,min=8,max=72"`
+		ConfirmPassword string `json:"confirmPassword" validate:"required,min=8,max=72,eqfield=NewPassword"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := getUserFromContext(r)
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		var req request
+		if err := readAndValidateJSON(w, r, &req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		// OAuth-only and magic-link-only accounts have no password to change. Direct
+		// them to the password-reset flow, which can set a first password.
+		if len(user.Password) == 0 {
+			writeJSONError(w, http.StatusBadRequest, "No password is set for this account. Use the password reset flow to set one.")
+			return
+		}
+
+		if !user.Password.Compare(req.CurrentPassword) {
+			writeJSONError(w, http.StatusBadRequest, "Current password is incorrect")
+			return
+		}
+
+		if req.NewPassword == req.CurrentPassword {
+			writeJSONError(w, http.StatusBadRequest, "New password must be different from the current password")
+			return
+		}
+
+		tx, err := ac.store.Transaction.Begin()
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		defer func(tx *sqlx.Tx) {
+			if err != nil {
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
+			}
+		}(tx)
+
+		if err = user.Password.Set(req.NewPassword); err != nil {
+			serverError(w, r, err)
+			return
+		}
+		if _, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		// Revoke every session (logs out other devices), then issue a fresh one for the
+		// current device so this request stays authenticated.
+		if err = ac.store.Session.DeleteForUser(r.Context(), tx, user.ID); err != nil {
+			serverError(w, r, err)
+			return
+		}
+		expiresAt := ac.sessionExpiry()
+		newToken, err := ac.store.Session.Create(r.Context(), tx, &store.Session{
+			UserID:    user.ID,
+			IPAddress: r.RemoteAddr,
+			UserAgent: r.UserAgent(),
+			ExpiresAt: expiresAt,
+		})
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.store.Transaction.Commit(tx); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		http.SetCookie(w, ac.newSessionCookie(newToken, expiresAt))
+
+		// Best-effort notification; a failure here must not fail the request.
+		if mailErr := ac.config.Mailer.SendPasswordChangedEmail(user.Email); mailErr != nil {
+			slog.Error("failed to send password changed email", "error", mailErr)
+		}
+
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Password changed successfully"})
+	}
+}
+
+// ChangeEmailHandler lets an authenticated user request an email change. It must be
+// mounted behind AuthMiddleware. The change is not applied here: a confirmation link is
+// sent to the NEW address and the change only takes effect when ConfirmEmailChangeHandler
+// consumes that token, so the account email is never set to an unverified address.
+//
+// OAuth-linked accounts are rejected: OAuthCallbackHandler matches returning users by
+// email, so changing it would orphan the account on the next OAuth sign-in. Password
+// accounts must re-authenticate with their current password; magic-link-only accounts
+// have no password, so their session plus the new-email verification is the control.
+func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
+	type request struct {
+		NewEmail        string `json:"newEmail" validate:"required,email,max=255"`
+		CurrentPassword string `json:"currentPassword" validate:"omitempty,max=72"`
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := getUserFromContext(r)
+		if !ok {
+			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
+			return
+		}
+
+		var req request
+		if err := readAndValidateJSON(w, r, &req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if user.OAuthProvider != nil && user.OAuthProvider.Valid {
+			writeJSONError(w, http.StatusConflict, "Your email is managed by your linked "+user.OAuthProvider.String+" account and can't be changed here.")
+			return
+		}
+
+		// Re-authenticate accounts that have a password. Magic-link-only accounts have
+		// none; for them the session and the new-email verification are the control.
+		if len(user.Password) > 0 && !user.Password.Compare(req.CurrentPassword) {
+			writeJSONError(w, http.StatusBadRequest, "Current password is incorrect")
+			return
+		}
+
+		if strings.EqualFold(req.NewEmail, user.Email) {
+			writeJSONError(w, http.StatusBadRequest, "The new email is the same as your current email")
+			return
+		}
+
+		// Reject an address already registered to another account.
+		if _, err := ac.store.User.GetByEmail(r.Context(), nil, req.NewEmail); err == nil {
+			writeJSONError(w, http.StatusConflict, "That email address is already in use")
+			return
+		} else if !errors.Is(err, store.ErrNotFound) {
+			serverError(w, r, err)
+			return
+		}
+
+		tx, err := ac.store.Transaction.Begin()
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		defer func(tx *sqlx.Tx) {
+			if err != nil {
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
+			}
+		}(tx)
+
+		// The token carries the pending new email; the user_id ties it to this account.
+		verificationToken, err := ac.store.Verification.Create(
+			r.Context(),
+			tx,
+			ac.newVerification(
+				auth.EmailChangeIntent,
+				auth.NewNullString(req.NewEmail),
+				auth.NewNullString(user.ID),
+			),
+		)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.config.Mailer.SendEmailChangeEmail(req.NewEmail, verificationToken); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.store.Transaction.Commit(tx); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "A confirmation link has been sent to your new email address."})
+	}
+}
+
+// ConfirmEmailChangeHandler applies an email change once the user visits the link sent
+// to their new address. It is a public endpoint authorized solely by the single-use
+// token, so it must not be mounted behind AuthMiddleware.
+func (ac *AuthClient) ConfirmEmailChangeHandler(extractor ParamExtractor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenStr := extractor.GetParam("token")
+		if tokenStr == "" {
+			writeJSONError(w, http.StatusBadRequest, "Token is required")
+			return
+		}
+
+		tx, err := ac.store.Transaction.Begin()
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		defer func(tx *sqlx.Tx) {
+			if err != nil {
+				if rbErr := ac.store.Transaction.Rollback(tx); rbErr != nil {
+					slog.Error("rollback error", "error", rbErr)
+				}
+			}
+		}(tx)
+
+		// Atomically validate and consume the token; a rollback below restores it.
+		token, err := ac.store.Verification.Consume(r.Context(), tx, tokenStr, auth.EmailChangeIntent)
+		if err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			return
+		}
+		if !token.UserID.Valid || !token.Email.Valid {
+			writeJSONError(w, http.StatusBadRequest, "Invalid token")
+			return
+		}
+
+		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		user.Email = token.Email.String
+		user.EmailVerified = true
+		if _, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
+			// The address may have been taken between request and confirmation.
+			if errors.Is(err, store.ErrDuplicateEmail) {
+				writeJSONError(w, http.StatusConflict, "That email address is already in use")
+				return
+			}
+			serverError(w, r, err)
+			return
+		}
+
+		if err = ac.store.Transaction.Commit(tx); err != nil {
+			serverError(w, r, err)
+			return
+		}
+
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Email changed successfully"})
 	}
 }
 

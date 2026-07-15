@@ -43,7 +43,7 @@ CREATE TRIGGER sessions_set_updated_at
   BEFORE UPDATE ON sessions
   FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
-CREATE TYPE "verification_intent" AS ENUM ('password_reset', 'email_verification', 'magic_link');
+CREATE TYPE "verification_intent" AS ENUM ('password_reset', 'email_verification', 'magic_link', 'email_change');
 
 CREATE TABLE IF NOT EXISTS "verifications" (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

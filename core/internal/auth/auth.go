@@ -35,18 +35,21 @@ const (
 	PasswordResetIntent VerificationIntent = iota
 	EmailVerificationIntent
 	MagicLinkIntent
+	EmailChangeIntent
 )
 
 var verificationIntentToString = map[VerificationIntent]string{
 	PasswordResetIntent:     "password_reset",
 	EmailVerificationIntent: "email_verification",
 	MagicLinkIntent:         "magic_link",
+	EmailChangeIntent:       "email_change",
 }
 
 var stringToVerificationIntent = map[string]VerificationIntent{
 	"password_reset":     PasswordResetIntent,
 	"email_verification": EmailVerificationIntent,
 	"magic_link":         MagicLinkIntent,
+	"email_change":       EmailChangeIntent,
 }
 
 func (v VerificationIntent) String() string {

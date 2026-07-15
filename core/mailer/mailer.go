@@ -7,6 +7,7 @@ type Mailer interface {
 	SendPasswordResetEmail(to, token string) error
 	SendPasswordChangedEmail(to string) error
 	SendMagicLinkEmail(to, token string) error
+	SendEmailChangeEmail(to, token string) error
 }
 
 type AppMailer struct {
@@ -36,6 +37,14 @@ func (m *AppMailer) SendMagicLinkEmail(to, token string) error {
 	// Send an email to the user with the magic link token
 	magicLinkURL := fmt.Sprintf("%s/auth/magic-link/%s", m.baseURL, token)
 	fmt.Printf("Sending magic link mail to %s from %s url: %s\n", to, m.from, magicLinkURL)
+	return nil
+}
+
+func (m *AppMailer) SendEmailChangeEmail(to, token string) error {
+	// Send a confirmation link to the user's NEW email address; the change applies
+	// only when this link is visited.
+	changeURL := fmt.Sprintf("%s/auth/change-email/%s", m.baseURL, token)
+	fmt.Printf("Sending email-change confirmation to %s from %s url: %s\n", to, m.from, changeURL)
 	return nil
 }
 

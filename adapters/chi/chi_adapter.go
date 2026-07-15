@@ -31,6 +31,9 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 		ac.VerifyEmailHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
 	r.Post(core.PathResendVerification, ac.ResendVerificationHandler())
+	r.Get(core.PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.ConfirmEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		r.Get(core.PathOAuthBegin, gothic.BeginAuthHandler)
@@ -51,4 +54,6 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 
 	r.Method(http.MethodGet, core.PathMe, mw(ac.GetMeHandler()))
 	r.Method(http.MethodPost, core.PathLogout, mw(ac.LogoutHandler()))
+	r.Method(http.MethodPost, core.PathChangePassword, mw(ac.ChangePasswordHandler()))
+	r.Method(http.MethodPost, core.PathChangeEmail, mw(ac.ChangeEmailHandler()))
 }

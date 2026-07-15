@@ -121,4 +121,9 @@ type TokenConfig struct {
 	//
 	// Default: 5 minutes
 	MagicLink time.Duration
+	// EmailChange is the lifetime of the confirmation link sent to a new email
+	// address when an authenticated user changes their email.
+	//
+	// Default: 5 minutes
+	EmailChange time.Duration
 }

@@ -28,6 +28,9 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 		ac.VerifyEmailHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 	})
 	mux.Handle("POST "+core.PathResendVerification, ac.ResendVerificationHandler())
+	mux.HandleFunc("GET "+core.PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.ConfirmEmailChangeHandler(&StdHTTPParamExtractor{Req: r})(w, r)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		mux.HandleFunc("GET "+core.PathOAuthBegin, gothic.BeginAuthHandler)
@@ -48,4 +51,6 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 
 	mux.Handle("GET "+core.PathMe, mw(ac.GetMeHandler()))
 	mux.Handle("POST "+core.PathLogout, mw(ac.LogoutHandler()))
+	mux.Handle("POST "+core.PathChangePassword, mw(ac.ChangePasswordHandler()))
+	mux.Handle("POST "+core.PathChangeEmail, mw(ac.ChangeEmailHandler()))
 }

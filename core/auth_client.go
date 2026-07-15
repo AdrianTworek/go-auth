@@ -32,6 +32,7 @@ type resolvedDurations struct {
 	emailVerification time.Duration
 	passwordReset     time.Duration
 	magicLink         time.Duration
+	emailChange       time.Duration
 }
 
 // Checks if mailer is configured and magic link redirect urls are also provided
@@ -107,6 +108,7 @@ func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
 		emailVerification: auth.DefaultTokenDuration,
 		passwordReset:     auth.DefaultTokenDuration,
 		magicLink:         auth.DefaultTokenDuration,
+		emailChange:       auth.DefaultTokenDuration,
 	}
 
 	if s != nil && s.Duration > 0 {
@@ -126,6 +128,9 @@ func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
 		}
 		if t.MagicLink > 0 {
 			d.magicLink = t.MagicLink
+		}
+		if t.EmailChange > 0 {
+			d.emailChange = t.EmailChange
 		}
 	}
 
@@ -199,6 +204,8 @@ func (ac *AuthClient) tokenExpiry(intent auth.VerificationIntent) time.Time {
 		d = ac.durations.passwordReset
 	case auth.MagicLinkIntent:
 		d = ac.durations.magicLink
+	case auth.EmailChangeIntent:
+		d = ac.durations.emailChange
 	default:
 		d = auth.DefaultTokenDuration
 	}

@@ -29,6 +29,9 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 		ac.VerifyEmailHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
 	})
 	r.POST(core.PathResendVerification, gin.WrapH(ac.ResendVerificationHandler()))
+	r.GET(core.ColonParamPattern(core.PathConfirmEmailChange), func(c *gin.Context) {
+		ac.ConfirmEmailChangeHandler(&GinParamExtractor{Ctx: c})(c.Writer, c.Request)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		r.GET(core.PathOAuthBegin, gin.WrapF(gothic.BeginAuthHandler))
@@ -49,4 +52,6 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 
 	r.GET(core.PathMe, gin.WrapH(mw(ac.GetMeHandler())))
 	r.POST(core.PathLogout, gin.WrapH(mw(ac.LogoutHandler())))
+	r.POST(core.PathChangePassword, gin.WrapH(mw(ac.ChangePasswordHandler())))
+	r.POST(core.PathChangeEmail, gin.WrapH(mw(ac.ChangeEmailHandler())))
 }

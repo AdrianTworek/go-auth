@@ -30,6 +30,9 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 		return adaptor.HTTPHandlerFunc(ac.VerifyEmailHandler(&FiberParamExtractor{Ctx: c}))(c)
 	})
 	app.Post(core.PathResendVerification, adaptor.HTTPHandlerFunc(ac.ResendVerificationHandler()))
+	app.Get(core.ColonParamPattern(core.PathConfirmEmailChange), func(c *fiber.Ctx) error {
+		return adaptor.HTTPHandlerFunc(ac.ConfirmEmailChangeHandler(&FiberParamExtractor{Ctx: c}))(c)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		app.Get(core.PathOAuthBegin, adaptor.HTTPHandlerFunc(gothic.BeginAuthHandler))
@@ -50,4 +53,6 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 
 	app.Get(core.PathMe, adaptor.HTTPHandler(mw(ac.GetMeHandler())))
 	app.Post(core.PathLogout, adaptor.HTTPHandler(mw(ac.LogoutHandler())))
+	app.Post(core.PathChangePassword, adaptor.HTTPHandler(mw(ac.ChangePasswordHandler())))
+	app.Post(core.PathChangeEmail, adaptor.HTTPHandler(mw(ac.ChangeEmailHandler())))
 }
