@@ -55,7 +55,12 @@ func (m *MockMailer) SendEmailChangeEmail(to, token string) error {
 	return args.Error(0)
 }
 
-func (m *MockMailer) SendEmailChangeNotification(to, newEmail string) error {
+func (m *MockMailer) SendEmailChangeNotification(to, newEmail, cancelToken string) error {
+	args := m.Called(to, newEmail, cancelToken)
+	return args.Error(0)
+}
+
+func (m *MockMailer) SendEmailChangeCompletedNotification(to, newEmail string) error {
 	args := m.Called(to, newEmail)
 	return args.Error(0)
 }
@@ -138,6 +143,9 @@ func (a *TestApp) Router() *chi.Mux {
 	})
 	r.Get(PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
 		ac.ConfirmEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
+	r.Get(PathCancelEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.CancelEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
 
 	r.With(mw).Get(PathMe, ac.GetMeHandler())

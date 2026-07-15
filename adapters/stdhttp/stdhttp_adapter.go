@@ -31,6 +31,9 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 	mux.HandleFunc("GET "+core.PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
 		ac.ConfirmEmailChangeHandler(&StdHTTPParamExtractor{Req: r})(w, r)
 	})
+	mux.HandleFunc("GET "+core.PathCancelEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.CancelEmailChangeHandler(&StdHTTPParamExtractor{Req: r})(w, r)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		mux.HandleFunc("GET "+core.PathOAuthBegin, gothic.BeginAuthHandler)

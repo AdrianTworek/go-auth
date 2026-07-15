@@ -24,6 +24,7 @@ const (
 	PathChangePassword     = "/auth/change-password"        // #nosec G101 -- URL path, not a credential
 	PathChangeEmail        = "/auth/change-email"
 	PathConfirmEmailChange = "/auth/change-email/{token}"
+	PathCancelEmailChange  = "/auth/change-email/{token}/cancel"
 )
 
 // ColonParamPattern converts a canonical "{name}" path pattern to the ":name" form
