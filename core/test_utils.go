@@ -50,6 +50,11 @@ func (m *MockMailer) SendMagicLinkEmail(to, token string) error {
 	return args.Error(0)
 }
 
+func (m *MockMailer) SendEmailChangeEmail(to, token string) error {
+	args := m.Called(to, token)
+	return args.Error(0)
+}
+
 type ChiParamExtractor struct {
 	Req *http.Request
 }
@@ -126,9 +131,14 @@ func (a *TestApp) Router() *chi.Mux {
 	r.Put(PathPasswordReset, func(w http.ResponseWriter, r *http.Request) {
 		ac.CompletePasswordResetHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+	r.Get(PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.ConfirmEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
 
 	r.With(mw).Get(PathMe, ac.GetMeHandler())
 	r.With(mw).Post(PathLogout, ac.LogoutHandler())
+	r.With(mw).Post(PathChangePassword, ac.ChangePasswordHandler())
+	r.With(mw).Post(PathChangeEmail, ac.ChangeEmailHandler())
 
 	return r
 }

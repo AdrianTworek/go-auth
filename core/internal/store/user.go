@@ -13,6 +13,17 @@ import (
 
 var ErrDuplicateEmail = errors.New("duplicate email")
 
+// mapDuplicateEmail converts a Postgres unique-violation (23505) into
+// ErrDuplicateEmail. users has a single unique constraint (email), so any unique
+// violation maps to a duplicate email.
+func mapDuplicateEmail(err error) error {
+	var pqErr *pq.Error
+	if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+		return ErrDuplicateEmail
+	}
+	return err
+}
+
 type User struct {
 	BaseEntity
 	Email         string           `json:"email" db:"email"`
@@ -69,13 +80,7 @@ func (s *UserStore) Create(ctx context.Context, tx *sqlx.Tx, user *User) error {
 	}
 
 	if err != nil {
-		// 23505 = unique_violation; users has a single unique constraint (email),
-		// so any unique violation on insert is a duplicate email.
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
-			return ErrDuplicateEmail
-		}
-		return err
+		return mapDuplicateEmail(err)
 	}
 
 	return nil
@@ -164,11 +169,11 @@ func (s *UserStore) Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User,
 		}
 		rows, err = query.QueryxContext(ctx, user)
 		if err != nil {
-			return nil, err
+			return nil, mapDuplicateEmail(err)
 		}
 	}
 	if err != nil {
-		return nil, err
+		return nil, mapDuplicateEmail(err)
 	}
 
 	updated := &User{}

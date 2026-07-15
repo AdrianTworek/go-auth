@@ -115,8 +115,11 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodGet, withToken(core.PathMagicLink)},
 		{http.MethodPost, core.PathSendPasswordReset},
 		{http.MethodPut, withToken(core.PathPasswordReset)},
+		{http.MethodGet, withToken(core.PathConfirmEmailChange)},
 		{http.MethodGet, core.PathMe},
 		{http.MethodPost, core.PathLogout},
+		{http.MethodPost, core.PathChangePassword},
+		{http.MethodPost, core.PathChangeEmail},
 	}
 
 	for name, probe := range probers {

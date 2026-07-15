@@ -21,6 +21,9 @@ const (
 	PathMagicLink          = "/auth/magic-link/{token}"
 	PathSendPasswordReset  = "/auth/reset-password"         // #nosec G101 -- URL path, not a credential
 	PathPasswordReset      = "/auth/reset-password/{token}" // #nosec G101 -- URL path, not a credential
+	PathChangePassword     = "/auth/change-password"        // #nosec G101 -- URL path, not a credential
+	PathChangeEmail        = "/auth/change-email"
+	PathConfirmEmailChange = "/auth/change-email/{token}"
 )
 
 // ColonParamPattern converts a canonical "{name}" path pattern to the ":name" form
