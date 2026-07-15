@@ -186,6 +186,10 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 
 	newEmail := "changed@example.com"
 	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	// The current (old) address is alerted that a change was requested (with a cancel
+	// link), and alerted again once the change completes.
+	app.mailer.On("SendEmailChangeNotification", TestUserData[DefaultUser].Email, newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeCompletedNotification", TestUserData[DefaultUser].Email, newEmail).Return(nil)
 
 	helper := newTestHelper(t, app)
 	cookie := loginCookie(t, helper, DefaultUser)
@@ -195,7 +199,6 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 		"currentPassword": TestUserData[DefaultUser].Password,
 	})
 	require.Equal(t, http.StatusOK, rr.Code)
-	app.mailer.AssertExpectations(t)
 
 	// The email is NOT changed until the link is visited.
 	_, err := app.storage.User.GetByEmail(t.Context(), nil, TestUserData[DefaultUser].Email)
@@ -212,6 +215,10 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 	assert.True(t, changed.EmailVerified)
 	_, err = app.storage.User.GetByEmail(t.Context(), nil, TestUserData[DefaultUser].Email)
 	assert.ErrorIs(t, err, store.ErrNotFound)
+
+	// All three mails fired: confirmation to the new address, plus the request-time and
+	// completion notifications to the old address.
+	app.mailer.AssertExpectations(t)
 }
 
 func Test_Integration_ChangeEmailOAuthLinkedBlocked(t *testing.T) {
@@ -254,9 +261,11 @@ func Test_Integration_ChangeEmailNoPasswordUserSkipsReauth(t *testing.T) {
 	defer CleanupIntegration(t, dbCtr, db)
 
 	newEmail := "ml-new@example.com"
+	oldEmail := "magiclink@example.com"
 	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeNotification", oldEmail, newEmail, mock.Anything).Return(nil)
 
-	uid := insertPasswordlessUser(t, db, "magiclink@example.com")
+	uid := insertPasswordlessUser(t, db, oldEmail)
 	cookie := sessionCookieFor(t, app, uid)
 
 	// No currentPassword supplied; the session plus new-email verification is the control.
@@ -272,5 +281,48 @@ func Test_Integration_ConfirmEmailChangeInvalidToken(t *testing.T) {
 	defer CleanupIntegration(t, dbCtr, db)
 
 	rr := doGet(t, app, strings.Replace(PathConfirmEmailChange, "{token}", "not-a-real-token", 1), nil)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+}
+
+// Test_Integration_CancelEmailChange verifies the cancel link (sent to the old address)
+// aborts a pending change: the token is consumed, so confirmation no longer works and
+// the account email is left untouched.
+func Test_Integration_CancelEmailChange(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	newEmail := "canceled@example.com"
+	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeNotification", TestUserData[DefaultUser].Email, newEmail, mock.Anything).Return(nil)
+
+	helper := newTestHelper(t, app)
+	cookie := loginCookie(t, helper, DefaultUser)
+
+	rr := doJSON(t, app, http.MethodPost, PathChangeEmail, cookie, map[string]string{
+		"newEmail":        newEmail,
+		"currentPassword": TestUserData[DefaultUser].Password,
+	})
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// The confirm and cancel links carry the same single-use token.
+	token := mailToken(t, app, "SendEmailChangeEmail")
+	cancelRR := doGet(t, app, strings.Replace(PathCancelEmailChange, "{token}", token, 1), nil)
+	require.Equal(t, http.StatusOK, cancelRR.Code)
+
+	// Confirmation now fails (token consumed), and the email is untouched.
+	confirmRR := doGet(t, app, strings.Replace(PathConfirmEmailChange, "{token}", token, 1), nil)
+	assert.Equal(t, http.StatusBadRequest, confirmRR.Code)
+
+	_, err := app.storage.User.GetByEmail(t.Context(), nil, TestUserData[DefaultUser].Email)
+	assert.NoError(t, err)
+	_, err = app.storage.User.GetByEmail(t.Context(), nil, newEmail)
+	assert.ErrorIs(t, err, store.ErrNotFound)
+}
+
+func Test_Integration_CancelEmailChangeInvalidToken(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	rr := doGet(t, app, strings.Replace(PathCancelEmailChange, "{token}", "not-a-real-token", 1), nil)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }

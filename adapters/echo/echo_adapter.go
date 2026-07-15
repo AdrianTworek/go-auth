@@ -32,6 +32,9 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 	e.GET(core.ColonParamPattern(core.PathConfirmEmailChange), func(c echo.Context) error {
 		return echo.WrapHandler(ac.ConfirmEmailChangeHandler(&EchoParamExtractor{Ctx: c}))(c)
 	})
+	e.GET(core.ColonParamPattern(core.PathCancelEmailChange), func(c echo.Context) error {
+		return echo.WrapHandler(ac.CancelEmailChangeHandler(&EchoParamExtractor{Ctx: c}))(c)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		e.GET(core.PathOAuthBegin, func(c echo.Context) error {

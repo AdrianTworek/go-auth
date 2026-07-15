@@ -34,6 +34,9 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 	r.Get(core.PathConfirmEmailChange, func(w http.ResponseWriter, r *http.Request) {
 		ac.ConfirmEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
 	})
+	r.Get(core.PathCancelEmailChange, func(w http.ResponseWriter, r *http.Request) {
+		ac.CancelEmailChangeHandler(&ChiParamExtractor{Req: r})(w, r)
+	})
 
 	if ac.CanLoginWithOAuth() {
 		r.Get(core.PathOAuthBegin, gothic.BeginAuthHandler)

@@ -1088,6 +1088,14 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 			return
 		}
 
+		// Alert the current (old) address that a change was requested, so the account
+		// owner can react while it is still pending — the change only applies once the
+		// link sent to the new address is visited. Best-effort; user.Email is still the
+		// old address here.
+		if mailErr := ac.config.Mailer.SendEmailChangeNotification(user.Email, req.NewEmail, verificationToken); mailErr != nil {
+			slog.Error("failed to send email-change notification", "error", mailErr)
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "A confirmation link has been sent to your new email address."})
 	}
 }
@@ -1133,7 +1141,11 @@ func (ac *AuthClient) ConfirmEmailChangeHandler(extractor ParamExtractor) http.H
 			return
 		}
 
-		user.Email = token.Email.String
+		// Capture the previous address before overwriting it, so it can be notified.
+		oldEmail := user.Email
+		newEmail := token.Email.String
+
+		user.Email = newEmail
 		user.EmailVerified = true
 		if _, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
 			// The address may have been taken between request and confirmation.
@@ -1150,7 +1162,35 @@ func (ac *AuthClient) ConfirmEmailChangeHandler(extractor ParamExtractor) http.H
 			return
 		}
 
+		// Alert the previous address that the change completed (best-effort).
+		if mailErr := ac.config.Mailer.SendEmailChangeCompletedNotification(oldEmail, newEmail); mailErr != nil {
+			slog.Error("failed to send email-change completed notification", "error", mailErr)
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Email changed successfully"})
+	}
+}
+
+// CancelEmailChangeHandler aborts a pending email change from the link included in the
+// notification sent to the current (old) address. It consumes the change token without
+// applying it, so the request can no longer be confirmed. Like the confirm endpoint it
+// is public, authorized solely by the single-use token, so it must not be mounted
+// behind AuthMiddleware.
+func (ac *AuthClient) CancelEmailChangeHandler(extractor ParamExtractor) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenStr := extractor.GetParam("token")
+		if tokenStr == "" {
+			writeJSONError(w, http.StatusBadRequest, "Token is required")
+			return
+		}
+
+		// Consume (delete) the token without applying the change.
+		if _, err := ac.store.Verification.Consume(r.Context(), nil, tokenStr, auth.EmailChangeIntent); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "Invalid or expired token")
+			return
+		}
+
+		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "The pending email change has been cancelled."})
 	}
 }
 

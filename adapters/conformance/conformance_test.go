@@ -116,6 +116,7 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodPost, core.PathSendPasswordReset},
 		{http.MethodPut, withToken(core.PathPasswordReset)},
 		{http.MethodGet, withToken(core.PathConfirmEmailChange)},
+		{http.MethodGet, withToken(core.PathCancelEmailChange)},
 		{http.MethodGet, core.PathMe},
 		{http.MethodPost, core.PathLogout},
 		{http.MethodPost, core.PathChangePassword},
