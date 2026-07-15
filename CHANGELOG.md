@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.4.0](https://github.com/AdrianTworek/go-auth/compare/v1.3.2...v1.4.0) (2026-07-15)
+
+
+### Features
+
+* **adapters:** share canonical route paths and add a conformance test ([d4fa9ad](https://github.com/AdrianTworek/go-auth/commit/d4fa9ad82c6dddb77a50776bd765d3a1adb7e03c))
+* **adapters:** share canonical route paths and add a conformance test ([845c03c](https://github.com/AdrianTworek/go-auth/commit/845c03ca5814b00f30efd91f5e43404c61c7b3a6))
+* **core:** add cancel link and completion notice to email change ([18b5cdf](https://github.com/AdrianTworek/go-auth/commit/18b5cdfc190b6abe4d15a84132576f44839f6a94))
+* **core:** add protected change-password and change-email handlers ([0517da9](https://github.com/AdrianTworek/go-auth/commit/0517da9671f39e594fc3321d947b4c0a9452afb2))
+* **core:** add protected change-password and change-email handlers ([5557f84](https://github.com/AdrianTworek/go-auth/commit/5557f84547e73504e6e98e4aadb35a760f74e1cd))
+* **core:** add resend-verification endpoint ([7d11e06](https://github.com/AdrianTworek/go-auth/commit/7d11e06e480a49c1f3ff53209d850c8be5ed0d63))
+* **core:** add resend-verification endpoint ([f0c0914](https://github.com/AdrianTworek/go-auth/commit/f0c09149a9856da24ee37d9e2c73ab1ccae0364f))
+* **core:** configurable session and token durations ([e279bf2](https://github.com/AdrianTworek/go-auth/commit/e279bf20a8eed9e6d452c66244985183fb21e2a1))
+* **core:** configurable session and token durations ([6d62bcc](https://github.com/AdrianTworek/go-auth/commit/6d62bcc80a41067b1fe4b5ed2a9fc62805e6acbe))
+* **core:** harden email change — old-address notification, cancel link, completion notice ([75d82a5](https://github.com/AdrianTworek/go-auth/commit/75d82a5d4039eeb7ec8083c24e7a3d002b0eb149))
+* **core:** notify the old address when an email change is requested ([97450d8](https://github.com/AdrianTworek/go-auth/commit/97450d83d916d6754fc045bfa6b89239d6e93718))
+
+
+### Bug Fixes
+
+* bump the go-minor-patch group with 3 updates ([9f6f160](https://github.com/AdrianTworek/go-auth/commit/9f6f160918cf3df2a6e9c5f91984911b4bcdf2db))
+* bump the go-minor-patch group with 3 updates ([6aab48b](https://github.com/AdrianTworek/go-auth/commit/6aab48b4946cddb47cdb83985e200dfdb3b95778))
+
 ## [1.3.2](https://github.com/AdrianTworek/go-auth/compare/v1.3.1...v1.3.2) (2026-06-28)
 
 
