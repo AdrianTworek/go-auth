@@ -55,6 +55,11 @@ func (m *MockMailer) SendEmailChangeEmail(to, token string) error {
 	return args.Error(0)
 }
 
+func (m *MockMailer) SendEmailChangeNotification(to, newEmail string) error {
+	args := m.Called(to, newEmail)
+	return args.Error(0)
+}
+
 type ChiParamExtractor struct {
 	Req *http.Request
 }

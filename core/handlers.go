@@ -1088,6 +1088,14 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 			return
 		}
 
+		// Alert the current (old) address that a change was requested, so the account
+		// owner can react while it is still pending — the change only applies once the
+		// link sent to the new address is visited. Best-effort; user.Email is still the
+		// old address here.
+		if mailErr := ac.config.Mailer.SendEmailChangeNotification(user.Email, req.NewEmail); mailErr != nil {
+			slog.Error("failed to send email-change notification", "error", mailErr)
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "A confirmation link has been sent to your new email address."})
 	}
 }

@@ -8,6 +8,9 @@ type Mailer interface {
 	SendPasswordChangedEmail(to string) error
 	SendMagicLinkEmail(to, token string) error
 	SendEmailChangeEmail(to, token string) error
+	// SendEmailChangeNotification alerts a user's current (old) address that a change
+	// to newEmail was requested, so the owner can react while it is still pending.
+	SendEmailChangeNotification(to, newEmail string) error
 }
 
 type AppMailer struct {
@@ -45,6 +48,12 @@ func (m *AppMailer) SendEmailChangeEmail(to, token string) error {
 	// only when this link is visited.
 	changeURL := fmt.Sprintf("%s/auth/change-email/%s", m.baseURL, token)
 	fmt.Printf("Sending email-change confirmation to %s from %s url: %s\n", to, m.from, changeURL)
+	return nil
+}
+
+func (m *AppMailer) SendEmailChangeNotification(to, newEmail string) error {
+	// Alert the user's current (old) address that a change to newEmail was requested.
+	fmt.Printf("Notifying %s from %s that an email change to %s was requested\n", to, m.from, newEmail)
 	return nil
 }
 

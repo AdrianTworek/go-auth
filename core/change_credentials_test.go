@@ -186,6 +186,8 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 
 	newEmail := "changed@example.com"
 	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	// The current (old) address is alerted that a change was requested.
+	app.mailer.On("SendEmailChangeNotification", TestUserData[DefaultUser].Email, newEmail).Return(nil)
 
 	helper := newTestHelper(t, app)
 	cookie := loginCookie(t, helper, DefaultUser)
@@ -254,9 +256,11 @@ func Test_Integration_ChangeEmailNoPasswordUserSkipsReauth(t *testing.T) {
 	defer CleanupIntegration(t, dbCtr, db)
 
 	newEmail := "ml-new@example.com"
+	oldEmail := "magiclink@example.com"
 	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeNotification", oldEmail, newEmail).Return(nil)
 
-	uid := insertPasswordlessUser(t, db, "magiclink@example.com")
+	uid := insertPasswordlessUser(t, db, oldEmail)
 	cookie := sessionCookieFor(t, app, uid)
 
 	// No currentPassword supplied; the session plus new-email verification is the control.
