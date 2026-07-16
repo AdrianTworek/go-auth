@@ -57,4 +57,8 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	r.POST(core.PathLogout, gin.WrapH(mw(ac.LogoutHandler())))
 	r.POST(core.PathChangePassword, gin.WrapH(mw(ac.ChangePasswordHandler())))
 	r.POST(core.PathChangeEmail, gin.WrapH(mw(ac.ChangeEmailHandler())))
+
+	r.GET(core.PathSessions, gin.WrapH(mw(ac.ListSessionsHandler())))
+	r.DELETE(core.PathSessions, gin.WrapH(mw(ac.RevokeOtherSessionsHandler())))
+	r.DELETE(core.ColonParamPattern(core.PathSession), gin.WrapH(mw(ac.RevokeSessionHandler())))
 }

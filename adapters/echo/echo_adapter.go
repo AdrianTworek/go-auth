@@ -60,4 +60,8 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 	e.POST(core.PathLogout, echo.WrapHandler(mw(ac.LogoutHandler())))
 	e.POST(core.PathChangePassword, echo.WrapHandler(mw(ac.ChangePasswordHandler())))
 	e.POST(core.PathChangeEmail, echo.WrapHandler(mw(ac.ChangeEmailHandler())))
+
+	e.GET(core.PathSessions, echo.WrapHandler(mw(ac.ListSessionsHandler())))
+	e.DELETE(core.PathSessions, echo.WrapHandler(mw(ac.RevokeOtherSessionsHandler())))
+	e.DELETE(core.ColonParamPattern(core.PathSession), echo.WrapHandler(mw(ac.RevokeSessionHandler())))
 }

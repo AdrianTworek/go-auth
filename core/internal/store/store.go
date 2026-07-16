@@ -29,6 +29,9 @@ type Storage struct {
 		Refresh(ctx context.Context, tx *sqlx.Tx, oldToken string, expiresAt time.Time) (string, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
+		ListForUser(ctx context.Context, userID string) ([]*Session, error)
+		DeleteOthersForUser(ctx context.Context, tx *sqlx.Tx, userID, currentToken string) error
+		DeleteByIDForUser(ctx context.Context, tx *sqlx.Tx, userID, id string) (*Session, error)
 		DeleteExpired(ctx context.Context) error
 	}
 	Verification interface {

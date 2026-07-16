@@ -56,4 +56,8 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 	mux.Handle("POST "+core.PathLogout, mw(ac.LogoutHandler()))
 	mux.Handle("POST "+core.PathChangePassword, mw(ac.ChangePasswordHandler()))
 	mux.Handle("POST "+core.PathChangeEmail, mw(ac.ChangeEmailHandler()))
+
+	mux.Handle("GET "+core.PathSessions, mw(ac.ListSessionsHandler()))
+	mux.Handle("DELETE "+core.PathSessions, mw(ac.RevokeOtherSessionsHandler()))
+	mux.Handle("DELETE "+core.PathSession, mw(ac.RevokeSessionHandler()))
 }

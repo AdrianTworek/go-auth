@@ -153,6 +153,10 @@ func (a *TestApp) Router() *chi.Mux {
 	r.With(mw).Post(PathChangePassword, ac.ChangePasswordHandler())
 	r.With(mw).Post(PathChangeEmail, ac.ChangeEmailHandler())
 
+	r.With(mw).Get(PathSessions, ac.ListSessionsHandler())
+	r.With(mw).Delete(PathSessions, ac.RevokeOtherSessionsHandler())
+	r.With(mw).Delete(PathSession, ac.RevokeSessionHandler())
+
 	return r
 }
 
