@@ -59,4 +59,8 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 	r.Method(http.MethodPost, core.PathLogout, mw(ac.LogoutHandler()))
 	r.Method(http.MethodPost, core.PathChangePassword, mw(ac.ChangePasswordHandler()))
 	r.Method(http.MethodPost, core.PathChangeEmail, mw(ac.ChangeEmailHandler()))
+
+	r.Method(http.MethodGet, core.PathSessions, mw(ac.ListSessionsHandler()))
+	r.Method(http.MethodDelete, core.PathSessions, mw(ac.RevokeOtherSessionsHandler()))
+	r.Method(http.MethodDelete, core.PathSession, mw(ac.RevokeSessionHandler()))
 }

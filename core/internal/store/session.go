@@ -141,6 +141,82 @@ func (s *SessionStore) DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID st
 	return nil
 }
 
+// ListForUser returns the user's currently-active (unexpired) sessions, newest first.
+// The Token field carries the stored hash, which callers use to flag the current
+// session; it is never serialised (json:"-").
+func (s *SessionStore) ListForUser(ctx context.Context, userID string) ([]*Session, error) {
+	query := `
+		SELECT * FROM sessions
+		WHERE user_id = $1 AND expires_at > NOW()
+		ORDER BY created_at DESC
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	sessions := []*Session{}
+	if err := s.db.SelectContext(ctx, &sessions, query, userID); err != nil {
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
+// DeleteOthersForUser revokes every session for the user except the one identified by
+// currentToken (the raw token, hashed here for comparison), so the caller's own session
+// survives a "log out everywhere else" action.
+func (s *SessionStore) DeleteOthersForUser(ctx context.Context, tx *sqlx.Tx, userID, currentToken string) error {
+	query := `
+		DELETE FROM sessions WHERE user_id = $1 AND token <> $2
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	hashed := auth.HashToken(currentToken)
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query, userID, hashed)
+	} else {
+		_, err = s.db.ExecContext(ctx, query, userID, hashed)
+	}
+
+	return err
+}
+
+// DeleteByIDForUser revokes a single session by id, scoped to the owning user so one
+// user can't revoke another's session. It returns ErrNotFound when no such session
+// exists for the user (including when id isn't a valid UUID, which simply matches
+// nothing). The deleted row is returned so the caller can tell whether it revoked the
+// session backing the current request. The id is compared as text so a malformed value
+// can't raise a type error.
+func (s *SessionStore) DeleteByIDForUser(ctx context.Context, tx *sqlx.Tx, userID, id string) (*Session, error) {
+	query := `
+		DELETE FROM sessions
+		WHERE user_id = $1 AND id::text = $2
+		RETURNING *
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	session := &Session{}
+	var err error
+	if tx != nil {
+		err = tx.GetContext(ctx, session, query, userID, id)
+	} else {
+		err = s.db.GetContext(ctx, session, query, userID, id)
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return session, nil
+}
+
 func (s *SessionStore) DeleteExpired(ctx context.Context) error {
 	query := `DELETE FROM sessions WHERE expires_at < NOW()`
 

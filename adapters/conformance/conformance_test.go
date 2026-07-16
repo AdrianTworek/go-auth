@@ -121,6 +121,9 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodPost, core.PathLogout},
 		{http.MethodPost, core.PathChangePassword},
 		{http.MethodPost, core.PathChangeEmail},
+		{http.MethodGet, core.PathSessions},
+		{http.MethodDelete, core.PathSessions},
+		{http.MethodDelete, strings.Replace(core.PathSession, "{id}", "conformance-session-id", 1)},
 	}
 
 	for name, probe := range probers {
