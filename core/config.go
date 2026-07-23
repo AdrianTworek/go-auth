@@ -29,6 +29,19 @@ type AuthConfig struct {
 	//
 	// Default: 10
 	BcryptCost int
+	// RateLimit configures abuse protection on the auth endpoints (brute-force and
+	// email flooding). When nil, rate limiting is ON with conservative defaults and
+	// an in-memory store — correct for a single instance. See RateLimitConfig.
+	//
+	// Default: enabled, in-memory
+	RateLimit *RateLimitConfig
+	// TrustedProxy controls how the client IP is derived for rate limiting and
+	// session records. When nil the library uses the direct peer (RemoteAddr), which
+	// is correct when the app is exposed directly. Set it when behind a proxy or load
+	// balancer so the real client IP is read from X-Forwarded-For.
+	//
+	// Default: nil (use RemoteAddr)
+	TrustedProxy *TrustedProxyConfig
 }
 
 type OAuthConfig struct {
@@ -126,4 +139,100 @@ type TokenConfig struct {
 	//
 	// Default: 5 minutes
 	EmailChange time.Duration
+}
+
+// RateLimitBackend selects a built-in counter store for rate limiting.
+type RateLimitBackend int
+
+const (
+	// RateLimitMemory keeps counters in process. It is the default and is correct
+	// for a single instance, but limits are per-process (N replicas = N times the
+	// limit) and reset on restart.
+	RateLimitMemory RateLimitBackend = iota
+	// RateLimitPostgres keeps counters in Postgres (using the library's existing
+	// pool), so limits are shared and authoritative across replicas. Use it when you
+	// run more than one instance.
+	RateLimitPostgres
+)
+
+// RateLimitConfig tunes abuse protection on the auth endpoints. A nil RateLimitConfig
+// enables the built-in defaults; set Enabled to a pointer to false to turn protection
+// off entirely.
+//
+// Limits are enforced with a token-bucket algorithm derived from each Rule's
+// {Max, Window}: a burst of up to Max is allowed, refilling to full over Window. Over
+// the limit, callers receive HTTP 429 with a Retry-After header — except the
+// per-account cap on the email-sending endpoints, which stays silent (the generic 200
+// response is unchanged and the extra email is dropped) so it can't be used to
+// enumerate accounts.
+type RateLimitConfig struct {
+	// Enabled toggles all rate limiting. When nil it defaults to true.
+	//
+	// Default: true
+	Enabled *bool
+	// Backend selects a built-in counter store (in-memory or Postgres). Ignored when
+	// Store is set.
+	//
+	// Default: RateLimitMemory
+	Backend RateLimitBackend
+	// Store plugs in a custom RateLimiter (e.g. Redis), overriding Backend.
+	//
+	// Default: nil (use Backend)
+	Store RateLimiter
+	// Login throttles failed password logins, keyed on client IP and on the targeted
+	// account. A successful login clears the account counter.
+	//
+	// Default: 10 / 15m per IP, 5 / 15m per account
+	Login Rule
+	// SendEmail throttles the address-sending endpoints (password reset,
+	// resend-verification, magic link) to curb email flooding.
+	//
+	// Default: 20 / 1h per IP, 3 / 1h per account
+	SendEmail Rule
+	// Register throttles account creation. Keyed on client IP (PerAccount is unused).
+	//
+	// Default: 10 / 1h per IP
+	Register Rule
+	// Sensitive throttles authenticated re-authentication actions (change password,
+	// change email), keyed on client IP and on the acting user.
+	//
+	// Default: 20 / 1h per IP, 10 / 1h per user
+	Sensitive Rule
+}
+
+// Rule is a per-flow limit with two independent dimensions. A zero-valued Limit uses
+// the flow's default; set a Limit's Max to a negative number to disable that
+// dimension.
+type Rule struct {
+	// PerIP caps requests from a single client IP (catches spray / stuffing).
+	PerIP Limit
+	// PerAccount caps requests targeting a single account or user (catches a focused
+	// attack on one victim). Unused by the Register flow.
+	PerAccount Limit
+}
+
+// Limit is one token-bucket limit: at most Max requests per Window.
+type Limit struct {
+	// Max is the burst size and the number of requests allowed per Window. Zero uses
+	// the default; a negative value disables this dimension.
+	Max int
+	// Window is the period over which the bucket refills to full. Zero uses the
+	// default.
+	Window time.Duration
+}
+
+// TrustedProxyConfig controls client-IP resolution when the app runs behind a
+// proxy or load balancer. Only enable this for infrastructure you control:
+// X-Forwarded-For is client-supplied and trivially spoofable otherwise.
+type TrustedProxyConfig struct {
+	// TrustForwardedHeader turns on X-Forwarded-For parsing. When false the direct
+	// peer (RemoteAddr) is always used.
+	TrustForwardedHeader bool
+	// TrustedHops is how many trusted proxies sit in front of the app. The client IP
+	// is taken that many entries from the right of the forwarded chain, so a
+	// client-supplied left-most value can't be trusted. For a single load balancer,
+	// set this to 1.
+	//
+	// Default: 0
+	TrustedHops int
 }
