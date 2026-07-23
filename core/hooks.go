@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
@@ -24,7 +25,29 @@ const (
 	EventEmailVerificationSuccess  AuthEventType = "email_verification_success"
 	EventEmailVerificationCallback AuthEventType = "email_verification_callback"
 	EventEmailVerificationFailed   AuthEventType = "email_verification_failed"
+	// EventRateLimited fires when a request is throttled by the rate limiter, before
+	// the 429 (or silent generic) response is written. The event's RateLimit field
+	// carries the details. It is primarily observational (logging, metrics, alerting);
+	// a hook may still respond early via the usual Hook* sentinels. Under an attack it
+	// can fire frequently, so keep handlers cheap.
+	EventRateLimited AuthEventType = "rate_limited"
 )
+
+// RateLimitInfo describes a throttling event, exposed to EventRateLimited hooks.
+type RateLimitInfo struct {
+	// Flow is the endpoint family that was limited, e.g. "login", "register",
+	// "reset_password", "resend_verification", "magic_link", "change_password" or
+	// "change_email".
+	Flow string
+	// Dimension is which limit tripped: "ip", "account" or "user".
+	Dimension string
+	// Key is the internal limiter key that was exceeded (contains the IP, email or
+	// user id), useful for logging.
+	Key string
+	// RetryAfter is how long until the caller may retry. Zero for the silent
+	// per-account cap on send endpoints.
+	RetryAfter time.Duration
+}
 
 type AuthEvent struct {
 	// Type of event that was triggered like EventBeforeLogin
@@ -35,6 +58,8 @@ type AuthEvent struct {
 	W http.ResponseWriter
 	// Request object from the request the event was sent from
 	R *http.Request
+	// RateLimit is set only for EventRateLimited and describes the throttling event.
+	RateLimit *RateLimitInfo
 }
 
 func NewAuthEvent(eventType AuthEventType, w http.ResponseWriter, r *http.Request, user *store.User) *AuthEvent {

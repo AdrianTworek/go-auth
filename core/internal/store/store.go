@@ -45,6 +45,11 @@ type Storage struct {
 		Commit(tx *sqlx.Tx) error
 		Rollback(tx *sqlx.Tx) error
 	}
+	RateLimit interface {
+		Allow(ctx context.Context, key string, capacity, refillPerSecond float64) (allowed bool, retryAfter time.Duration, err error)
+		Reset(ctx context.Context, key string) error
+		DeleteStale(ctx context.Context) error
+	}
 }
 
 func NewStorage(db *sqlx.DB) *Storage {
@@ -53,5 +58,6 @@ func NewStorage(db *sqlx.DB) *Storage {
 		Session:      &SessionStore{db: db},
 		Verification: &VerificationStore{db: db},
 		Transaction:  &TransactionStore{db: db},
+		RateLimit:    &RateLimitStore{db: db},
 	}
 }
