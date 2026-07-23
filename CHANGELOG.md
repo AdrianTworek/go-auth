@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/AdrianTworek/go-auth/compare/v1.4.0...v1.5.0) (2026-07-23)
+
+
+### Features
+
+* **core:** add session management endpoints ([d23e2d4](https://github.com/AdrianTworek/go-auth/commit/d23e2d4e8110859620eb5c0c44e65569e5e2647c))
+* **core:** add session management endpoints (list/revoke) ([6186a8e](https://github.com/AdrianTworek/go-auth/commit/6186a8ef384d7bffae23fa3aa3ba4bf65a3b11d1))
+
 ## [1.4.0](https://github.com/AdrianTworek/go-auth/compare/v1.3.2...v1.4.0) (2026-07-15)
 
 
