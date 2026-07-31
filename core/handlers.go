@@ -37,6 +37,10 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
+		if !ac.guardRegister(w, r) {
+			return
+		}
+
 		newUser := store.NewUser(req.Email, false, nil, nil, nil, nil)
 		if err := newUser.Password.Set(req.Password); err != nil {
 			serverError(w, r, err)
@@ -187,6 +191,13 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
+		// Throttle before touching bcrypt so a flood can't exhaust CPU. Keyed on
+		// client IP and on the submitted email (whether or not it's a real account,
+		// so a 429 never reveals account existence).
+		if !ac.guardLogin(w, r, req.Email) {
+			return
+		}
+
 		cont, err := ac.hookStore.Trigger(
 			r.Context(),
 			NewAuthEvent(
@@ -222,6 +233,10 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
+
+		// Correct password: clear the per-account throttle so earlier typos don't
+		// leave a legitimate user rate-limited.
+		ac.resetLoginLimit(r.Context(), req.Email)
 
 		if ac.config.Session.RequireVerifiedEmail && !user.EmailVerified {
 			writeJSONError(w, http.StatusForbidden, "You need to verify your email before logging in. Please check your email for a verification link.")
@@ -464,6 +479,10 @@ func (ac *AuthClient) ResendVerificationHandler() http.HandlerFunc {
 			return
 		}
 
+		if !ac.guardSend(w, r, "resend_verification", req.Email, genericVerificationMessage) {
+			return
+		}
+
 		// respond is used for every non-error outcome so registered, unregistered and
 		// already-verified addresses are indistinguishable from the response.
 		respond := func() {
@@ -552,6 +571,10 @@ func (ac *AuthClient) SendMagicLinkHandler() http.HandlerFunc {
 		var req request
 		if err := readAndValidateJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if !ac.guardSend(w, r, "magic_link", req.Email, "Magic link sent") {
 			return
 		}
 
@@ -744,6 +767,10 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 			return
 		}
 
+		if !ac.guardSend(w, r, "reset_password", req.Email, genericResetMessage) {
+			return
+		}
+
 		user, err := ac.store.User.GetByEmail(r.Context(), nil, req.Email)
 		if err != nil {
 			if errors.Is(err, store.ErrNotFound) {
@@ -923,6 +950,10 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 			return
 		}
 
+		if !ac.guardSensitive(w, r, "change_password", user.ID) {
+			return
+		}
+
 		// OAuth-only and magic-link-only accounts have no password to change. Direct
 		// them to the password-reset flow, which can set a first password.
 		if len(user.Password) == 0 {
@@ -1021,6 +1052,10 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 		var req request
 		if err := readAndValidateJSON(w, r, &req); err != nil {
 			writeJSONError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+
+		if !ac.guardSensitive(w, r, "change_email", user.ID) {
 			return
 		}
 

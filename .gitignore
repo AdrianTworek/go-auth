@@ -26,3 +26,5 @@ bin/
 database/
 # .DS_Store
 .DS_Store
+# AI working docs (local roadmap/context, not committed)
+/ai-docs/
