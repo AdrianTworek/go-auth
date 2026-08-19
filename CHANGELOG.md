@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0](https://github.com/AdrianTworek/go-auth/compare/v1.4.0...v1.5.0) (2026-08-19)
+
+
+### Features
+
+* **core:** add session management endpoints ([d23e2d4](https://github.com/AdrianTworek/go-auth/commit/d23e2d4e8110859620eb5c0c44e65569e5e2647c))
+* **core:** add session management endpoints (list/revoke) ([6186a8e](https://github.com/AdrianTworek/go-auth/commit/6186a8ef384d7bffae23fa3aa3ba4bf65a3b11d1))
+
+
+### Bug Fixes
+
+* bump github.com/moby/go-archive from 0.2.0 to 0.3.0 ([521f15d](https://github.com/AdrianTworek/go-auth/commit/521f15da46af44cb94760073da145dfd26567642))
+* bump github.com/moby/go-archive from 0.2.0 to 0.3.0 ([950669a](https://github.com/AdrianTworek/go-auth/commit/950669a09c11da5f4f39871d32bb74d365a5bf66))
+* bump the go-minor-patch group across 1 directory with 5 updates ([f696361](https://github.com/AdrianTworek/go-auth/commit/f69636172459d513f7ca23c5b3cdc7f7d9cde2f1))
+* bump the go-minor-patch group across 1 directory with 5 updates ([05dd0d8](https://github.com/AdrianTworek/go-auth/commit/05dd0d8bf981e629a7b6292bb1cbcfda5bf750a3))
+
 ## [1.4.0](https://github.com/AdrianTworek/go-auth/compare/v1.3.2...v1.4.0) (2026-07-15)
 
 
