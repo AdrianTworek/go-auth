@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/AdrianTworek/go-auth/compare/v1.5.0...v1.6.0) (2026-09-26)
+
+
+### Features
+
+* add rate limiting, proxy-aware client IP, and SMTP mailer ([617dde6](https://github.com/AdrianTworek/go-auth/commit/617dde660e71ef1f745386171fed0af7640a7bdf))
+
+
+### Bug Fixes
+
+* bump the go-minor-patch group across 1 directory with 6 updates ([127c899](https://github.com/AdrianTworek/go-auth/commit/127c8997ba4beffd78d4a103a874f8815af7014d))
+* bump the go-minor-patch group across 1 directory with 6 updates ([ff5304c](https://github.com/AdrianTworek/go-auth/commit/ff5304cb1d7d7c4afbdf74c32b86bdace5a7ea0c))
+
 ## [1.5.0](https://github.com/AdrianTworek/go-auth/compare/v1.4.0...v1.5.0) (2026-08-19)
 
 
