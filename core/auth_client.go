@@ -17,11 +17,14 @@ import (
 )
 
 type AuthClient struct {
-	config     *AuthConfig
-	store      *store.Storage
-	hookStore  *HookStore
-	cookieOpts auth.CookieOptions
-	durations  resolvedDurations
+	config       *AuthConfig
+	store        *store.Storage
+	hookStore    *HookStore
+	cookieOpts   auth.CookieOptions
+	durations    resolvedDurations
+	limiter      RateLimiter
+	rl           resolvedRateLimit
+	trustedProxy *TrustedProxyConfig
 }
 
 // resolvedDurations holds the session and token lifetimes for an AuthClient with
@@ -174,12 +177,18 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		hookStore = NewHookStore(HookMap{})
 	}
 
+	storage := store.NewStorage(db)
+	rl := resolveRateLimitRules(config.RateLimit)
+
 	return &AuthClient{
-		config:     config,
-		store:      store.NewStorage(db),
-		hookStore:  hookStore,
-		cookieOpts: resolveCookieOptions(config.Session),
-		durations:  resolveDurations(config.Session, config.Tokens),
+		config:       config,
+		store:        storage,
+		hookStore:    hookStore,
+		cookieOpts:   resolveCookieOptions(config.Session),
+		durations:    resolveDurations(config.Session, config.Tokens),
+		rl:           rl,
+		limiter:      buildRateLimiter(config.RateLimit, storage, rl),
+		trustedProxy: config.TrustedProxy,
 	}, nil
 }
 
@@ -235,5 +244,10 @@ func (ac *AuthClient) CleanupExpired(ctx context.Context) error {
 	if err := ac.store.Session.DeleteExpired(ctx); err != nil {
 		return err
 	}
-	return ac.store.Verification.DeleteExpired(ctx)
+	if err := ac.store.Verification.DeleteExpired(ctx); err != nil {
+		return err
+	}
+	// Prune idle rate-limit buckets (Postgres backend only; a no-op-ish DELETE that
+	// matches nothing when the in-memory backend is used).
+	return ac.store.RateLimit.DeleteStale(ctx)
 }

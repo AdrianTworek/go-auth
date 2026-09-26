@@ -104,6 +104,15 @@ func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
 func (a *TestApp) Router() *chi.Mux {
 	r := chi.NewRouter()
 
+	// Rate limiting is on by default in the library, but Router() builds a fresh
+	// client (and in-memory limiter) per call and most tests share the constant
+	// httptest RemoteAddr, so default it OFF here. Tests that exercise rate limiting
+	// build their own client with an explicit RateLimit config.
+	rl := a.config.RateLimit
+	if rl == nil {
+		rl = &RateLimitConfig{Enabled: Ptr(false)}
+	}
+
 	ac, err := NewAuthClient(&AuthConfig{
 		Db: &DatabaseConfig{
 			Dsn: a.env.DSN,
@@ -115,6 +124,8 @@ func (a *TestApp) Router() *chi.Mux {
 		Hooks:         a.config.Hooks,
 		BaseURL:       a.config.BaseURL,
 		SessionSecret: a.env.SessionSecret,
+		RateLimit:     rl,
+		TrustedProxy:  a.config.TrustedProxy,
 	})
 	if err != nil {
 		return nil
