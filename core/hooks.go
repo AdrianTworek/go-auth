@@ -86,8 +86,6 @@ type RateLimitInfo struct {
 // back when it was not. A handler may still short-circuit the response with the usual
 // Hook* sentinels; what it cannot do is undo the action.
 type AuditInfo struct {
-	// Action is what happened, defaulting to the event type's string value.
-	Action string
 	// TargetType is the kind of thing acted on: AuditTargetUser, AuditTargetSession or
 	// AuditTargetEmail.
 	TargetType string
@@ -149,12 +147,6 @@ func NewHookStore(hooks HookMap) *HookStore {
 	return &HookStore{
 		hooks: hooks,
 	}
-}
-
-// has reports whether any handler is registered for an event type, letting a caller
-// skip work that is only needed to populate the event.
-func (hs *HookStore) has(eventType AuthEventType) bool {
-	return len(hs.hooks[eventType]) > 0
 }
 
 // Trigger will trigger any hook that is set for that event type.

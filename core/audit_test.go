@@ -74,6 +74,17 @@ func auditConfig(rec *auditRecorder, eventTypes ...AuthEventType) *AuthConfig {
 
 const auditNewPassword = "NewP@ssword123!"
 
+// assertCanLogin proves a credential works end to end, through the login endpoint,
+// rather than by comparing hashes behind it.
+func assertCanLogin(t *testing.T, app *TestApp, email, password string) {
+	t.Helper()
+	rr := doJSON(t, app, http.MethodPost, PathLogin, nil, map[string]string{
+		"email":    email,
+		"password": password,
+	})
+	require.Equal(t, http.StatusOK, rr.Code, "expected the credential to work: %s", rr.Body.String())
+}
+
 func changePasswordBody(currentPassword string) map[string]string {
 	return map[string]string{
 		"currentPassword": currentPassword,
@@ -103,7 +114,6 @@ func Test_Integration_AuditPasswordChanged(t *testing.T) {
 	assert.Equal(t, TestUserData[DefaultUser].Email, ev.User.Email)
 
 	require.NotNil(t, ev.Audit)
-	assert.Equal(t, string(EventPasswordChanged), ev.Audit.Action)
 	assert.Equal(t, AuditTargetUser, ev.Audit.TargetType)
 	assert.Equal(t, userID(t, db, TestUserData[DefaultUser].Email), ev.Audit.TargetID)
 	assert.Equal(t, "192.0.2.1", ev.Audit.IP, "the httptest peer address, port stripped")
@@ -362,9 +372,8 @@ func Test_Integration_AuditHookErrorDoesNotFailRequest(t *testing.T) {
 		changePasswordBody(TestUserData[DefaultUser].Password))
 	require.Equal(t, http.StatusOK, rr.Code, "a broken audit handler must not break the request")
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, TestUserData[DefaultUser].Email)
-	require.NoError(t, err)
-	assert.True(t, dbUser.Password.Compare(auditNewPassword), "the change must still be durable")
+	// The change is durable despite the failing handler — proven by using the credential.
+	assertCanLogin(t, app, TestUserData[DefaultUser].Email, auditNewPassword)
 }
 
 // A handler observes state that is already committed — proven by reading the new
@@ -430,10 +439,8 @@ func Test_Integration_AuditHookSentinelStillShapesResponse(t *testing.T) {
 	require.Equal(t, http.StatusTeapot, rr.Code)
 	assert.Contains(t, rr.Body.String(), "audited")
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, TestUserData[DefaultUser].Email)
-	require.NoError(t, err)
-	assert.True(t, dbUser.Password.Compare(auditNewPassword),
-		"the sentinel shapes the response but cannot roll the change back")
+	// The sentinel shapes the response but cannot roll the change back.
+	assertCanLogin(t, app, TestUserData[DefaultUser].Email, auditNewPassword)
 }
 
 // --- client address --------------------------------------------------------

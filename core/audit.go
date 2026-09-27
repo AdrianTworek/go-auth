@@ -20,13 +20,15 @@ func (ac *AuthClient) newAuditEvent(
 	user *store.User,
 	audit AuditInfo,
 ) *AuthEvent {
-	if audit.Action == "" {
-		audit.Action = string(eventType)
-	}
 	audit.IP = ac.clientIP(r)
 	audit.UserAgent = r.UserAgent()
-	if audit.OccurredAt.IsZero() {
-		audit.OccurredAt = time.Now().UTC()
+	audit.OccurredAt = time.Now().UTC()
+
+	// Normalise email targets centrally so the call sites can't disagree on casing: a
+	// consumer keying its records on the address would otherwise see one account under
+	// two spellings.
+	if audit.TargetType == AuditTargetEmail {
+		audit.TargetID = normalizeEmail(audit.TargetID)
 	}
 
 	event := NewAuthEvent(eventType, w, r, user)
@@ -47,6 +49,10 @@ func (ac *AuthClient) newAuditEvent(
 // short-circuit with HookError, HookResponse or HookRedirect, in which case the response
 // has been written and this reports false. What a handler cannot do is roll the action
 // back.
+//
+// Trigger stops at the first handler that fails, so a broken subscriber also suppresses
+// any registered after it for the same event. That is the dispatcher's existing
+// behaviour, kept deliberately rather than special-cased here.
 func (ac *AuthClient) triggerAudit(ctx context.Context, event *AuthEvent) bool {
 	cont, err := ac.hookStore.Trigger(ctx, event)
 	if err != nil {
@@ -73,7 +79,7 @@ func (ac *AuthClient) auditLoginFailed(
 ) bool {
 	return ac.triggerAudit(r.Context(), ac.newAuditEvent(EventLoginFailed, w, r, user, AuditInfo{
 		TargetType: AuditTargetEmail,
-		TargetID:   normalizeEmail(email),
+		TargetID:   email,
 		Reason:     reason,
 	}))
 }

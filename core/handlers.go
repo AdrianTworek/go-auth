@@ -1257,11 +1257,11 @@ func (ac *AuthClient) CancelEmailChangeHandler(extractor ParamExtractor) http.Ha
 		}
 
 		// Resolve the account behind the token so the audit event names an actor. The
-		// endpoint is public — the token is the only credential — so this lookup exists
-		// purely for the event and is skipped when nobody is listening. A failure is not
+		// endpoint is public — the token is the only credential — and the token has just
+		// been consumed, so this runs once per genuine cancellation. A failure is not
 		// fatal: the cancellation is already done.
 		var user *store.User
-		if token.UserID.Valid && ac.hookStore.has(EventEmailChangeCancelled) {
+		if token.UserID.Valid {
 			if u, lookupErr := ac.store.User.GetByID(r.Context(), nil, token.UserID.String); lookupErr != nil {
 				slog.Error("failed to resolve the account for a cancelled email change", "error", lookupErr)
 			} else {
