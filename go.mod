@@ -5,7 +5,7 @@ go 1.26.4
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-chi/chi/v5 v5.3.2
-	github.com/go-playground/validator/v10 v10.30.4
+	github.com/go-playground/validator/v10 v10.30.5
 	github.com/gofiber/fiber/v2 v2.52.15
 	github.com/golang-migrate/migrate/v4 v4.20.1
 	github.com/gorilla/mux v1.8.1
