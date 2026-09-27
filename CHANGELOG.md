@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.7.0](https://github.com/AdrianTworek/go-auth/compare/v1.6.0...v1.7.0) (2026-09-27)
+
+
+### Features
+
+* **core:** add audit events for account-security actions ([1d07e60](https://github.com/AdrianTworek/go-auth/commit/1d07e605d8429f7bfe22931d442f96fee554b990))
+* **core:** add audit events for account-security actions ([aa4abb4](https://github.com/AdrianTworek/go-auth/commit/aa4abb48282af31fa409467d4be46b222febc57d))
+
+
+### Bug Fixes
+
+* bump github.com/go-playground/validator/v10 ([b51c334](https://github.com/AdrianTworek/go-auth/commit/b51c334ec723d44b11e4de564459d3af28dbe626))
+* bump github.com/go-playground/validator/v10 from 10.30.4 to 10.30.5 in the go-minor-patch group ([285dfc5](https://github.com/AdrianTworek/go-auth/commit/285dfc52ed8a78d4db234c892656fa886cb38cb4))
+* **core:** record the resolved client IP on session records ([9adb680](https://github.com/AdrianTworek/go-auth/commit/9adb680cc9d5ec39e8a6d351c457eafc2cb4ce98))
+* **core:** record the resolved client IP on session records ([d9ed752](https://github.com/AdrianTworek/go-auth/commit/d9ed752600c548fa6a183c2eef2186e6a1b1b0d8))
+* **core:** tighten audit events after review ([7e3d2f5](https://github.com/AdrianTworek/go-auth/commit/7e3d2f51f50555e1723bbe44509748a3e471af42))
+
 ## [1.6.0](https://github.com/AdrianTworek/go-auth/compare/v1.5.0...v1.6.0) (2026-09-26)
 
 
