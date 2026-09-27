@@ -23,6 +23,7 @@ type AuthClient struct {
 	cookieOpts   auth.CookieOptions
 	durations    resolvedDurations
 	limiter      RateLimiter
+	password     passwordPolicy
 	rl           resolvedRateLimit
 	trustedProxy *TrustedProxyConfig
 }
@@ -189,6 +190,7 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		rl:           rl,
 		limiter:      buildRateLimiter(config.RateLimit, storage, rl),
 		trustedProxy: config.TrustedProxy,
+		password:     resolvePasswordPolicy(config.Password),
 	}, nil
 }
 

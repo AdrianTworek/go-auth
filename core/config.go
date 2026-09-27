@@ -35,6 +35,12 @@ type AuthConfig struct {
 	//
 	// Default: enabled, in-memory
 	RateLimit *RateLimitConfig
+	// Password describes what counts as an acceptable password, and optionally enables a
+	// breached-password check. When nil the library's historical rule applies (8 to 72
+	// characters, no breach check).
+	//
+	// Default: nil
+	Password *PasswordConfig
 	// TrustedProxy controls how the client IP is derived for rate limiting and
 	// session records. When nil the library uses the direct peer (RemoteAddr), which
 	// is correct when the app is exposed directly. Set it when behind a proxy or load
