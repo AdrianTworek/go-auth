@@ -78,6 +78,13 @@ func (ac *AuthClient) RevokeOtherSessionsHandler() http.HandlerFunc {
 			return
 		}
 
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventAllOtherSessionsRevoked, w, r, user, AuditInfo{
+			TargetType: AuditTargetUser,
+			TargetID:   user.ID,
+		})) {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "All other sessions have been revoked"})
 	}
 }
@@ -119,6 +126,13 @@ func (ac *AuthClient) RevokeSessionHandler() http.HandlerFunc {
 		// cookie as well.
 		if deleted.Token == auth.HashToken(currentToken) {
 			http.SetCookie(w, ac.deleteSessionCookie())
+		}
+
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventSessionRevoked, w, r, user, AuditInfo{
+			TargetType: AuditTargetSession,
+			TargetID:   deleted.ID,
+		})) {
+			return
 		}
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Session revoked"})
