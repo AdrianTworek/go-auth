@@ -121,11 +121,14 @@ func buildRateLimiter(cfg *RateLimitConfig, s *store.Storage, rl resolvedRateLim
 	return newMemoryRateLimiter()
 }
 
-// clientIP derives the caller's IP for keying rate limits. It defaults to the direct
-// peer (RemoteAddr) and only consults X-Forwarded-For when a trusted-proxy config
-// opts in, taking the entry TrustedHops from the right of the chain so a spoofed
-// left-most value is ignored. On any ambiguity it falls back to the direct peer,
-// which is the safe (non-spoofable) choice.
+// clientIP derives the caller's IP. It is the single resolution shared by rate-limit
+// keys, the address stored on session records, and audit events, so those cannot
+// disagree about who the caller is.
+//
+// It returns the host without the port, defaulting to the direct peer (RemoteAddr) and
+// only consulting X-Forwarded-For when a trusted-proxy config opts in, taking the entry
+// TrustedHops from the right of the chain so a spoofed left-most value is ignored. On any
+// ambiguity it falls back to the direct peer, which is the safe (non-spoofable) choice.
 func (ac *AuthClient) clientIP(r *http.Request) string {
 	host := r.RemoteAddr
 	if h, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {

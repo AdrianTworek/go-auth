@@ -105,7 +105,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 				tx,
 				&store.Session{
 					UserID:    user.ID,
-					IPAddress: r.RemoteAddr,
+					IPAddress: ac.clientIP(r),
 					UserAgent: r.UserAgent(),
 					ExpiresAt: sessionExpiresAt,
 				},
@@ -258,7 +258,7 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			nil,
 			&store.Session{
 				UserID:    user.ID,
-				IPAddress: r.RemoteAddr,
+				IPAddress: ac.clientIP(r),
 				UserAgent: r.UserAgent(),
 				ExpiresAt: sessionExpiresAt,
 			},
@@ -742,7 +742,7 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 		sessionExpiresAt := ac.sessionExpiry()
 		sessionToken, err := ac.store.Session.Create(r.Context(), tx, &store.Session{
 			UserID:    user.ID,
-			IPAddress: r.RemoteAddr,
+			IPAddress: ac.clientIP(r),
 			UserAgent: r.UserAgent(),
 			ExpiresAt: sessionExpiresAt,
 		})
@@ -1011,7 +1011,7 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 		expiresAt := ac.sessionExpiry()
 		newToken, err := ac.store.Session.Create(r.Context(), tx, &store.Session{
 			UserID:    user.ID,
-			IPAddress: r.RemoteAddr,
+			IPAddress: ac.clientIP(r),
 			UserAgent: r.UserAgent(),
 			ExpiresAt: expiresAt,
 		})
@@ -1391,7 +1391,7 @@ func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
 			tx,
 			&store.Session{
 				UserID:    user.ID,
-				IPAddress: r.RemoteAddr,
+				IPAddress: ac.clientIP(r),
 				UserAgent: r.UserAgent(),
 				ExpiresAt: sessionExpiresAt,
 			},
