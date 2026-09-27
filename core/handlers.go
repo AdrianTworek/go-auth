@@ -225,11 +225,17 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			// User not found: spend comparable time on a throwaway bcrypt compare so
 			// the response time matches the wrong-password path (anti-enumeration).
 			auth.DummyCompare(req.Password)
+			if !ac.auditLoginFailed(w, r, nil, req.Email, LoginFailureUnknownAccount) {
+				return
+			}
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
 
 		if !user.Password.Compare(req.Password) {
+			if !ac.auditLoginFailed(w, r, user, req.Email, LoginFailureBadPassword) {
+				return
+			}
 			writeJSONError(w, http.StatusUnauthorized, "Invalid credentials")
 			return
 		}
@@ -239,6 +245,9 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 		ac.resetLoginLimit(r.Context(), req.Email)
 
 		if ac.config.Session.RequireVerifiedEmail && !user.EmailVerified {
+			if !ac.auditLoginFailed(w, r, user, req.Email, LoginFailureUnverifiedEmail) {
+				return
+			}
 			writeJSONError(w, http.StatusForbidden, "You need to verify your email before logging in. Please check your email for a verification link.")
 			return
 		}
@@ -1023,6 +1032,13 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 			slog.Error("failed to send password changed email", "error", mailErr)
 		}
 
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventPasswordChanged, w, r, user, AuditInfo{
+			TargetType: AuditTargetUser,
+			TargetID:   user.ID,
+		})) {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Password changed successfully"})
 	}
 }
@@ -1131,6 +1147,13 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 			slog.Error("failed to send email-change notification", "error", mailErr)
 		}
 
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventEmailChangeRequested, w, r, user, AuditInfo{
+			TargetType: AuditTargetEmail,
+			TargetID:   req.NewEmail,
+		})) {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "A confirmation link has been sent to your new email address."})
 	}
 }
@@ -1202,6 +1225,13 @@ func (ac *AuthClient) ConfirmEmailChangeHandler(extractor ParamExtractor) http.H
 			slog.Error("failed to send email-change completed notification", "error", mailErr)
 		}
 
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventEmailChangeConfirmed, w, r, user, AuditInfo{
+			TargetType: AuditTargetEmail,
+			TargetID:   newEmail,
+		})) {
+			return
+		}
+
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "Email changed successfully"})
 	}
 }
@@ -1220,8 +1250,34 @@ func (ac *AuthClient) CancelEmailChangeHandler(extractor ParamExtractor) http.Ha
 		}
 
 		// Consume (delete) the token without applying the change.
-		if _, err := ac.store.Verification.Consume(r.Context(), nil, tokenStr, auth.EmailChangeIntent); err != nil {
+		token, err := ac.store.Verification.Consume(r.Context(), nil, tokenStr, auth.EmailChangeIntent)
+		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "Invalid or expired token")
+			return
+		}
+
+		// Resolve the account behind the token so the audit event names an actor. The
+		// endpoint is public — the token is the only credential — and the token has just
+		// been consumed, so this runs once per genuine cancellation. A failure is not
+		// fatal: the cancellation is already done.
+		var user *store.User
+		if token.UserID.Valid {
+			if u, lookupErr := ac.store.User.GetByID(r.Context(), nil, token.UserID.String); lookupErr != nil {
+				slog.Error("failed to resolve the account for a cancelled email change", "error", lookupErr)
+			} else {
+				user = u
+			}
+		}
+
+		var abandonedEmail string
+		if token.Email.Valid {
+			abandonedEmail = token.Email.String
+		}
+
+		if !ac.triggerAudit(r.Context(), ac.newAuditEvent(EventEmailChangeCancelled, w, r, user, AuditInfo{
+			TargetType: AuditTargetEmail,
+			TargetID:   abandonedEmail,
+		})) {
 			return
 		}
 

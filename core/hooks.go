@@ -31,6 +31,33 @@ const (
 	// a hook may still respond early via the usual Hook* sentinels. Under an attack it
 	// can fire frequently, so keep handlers cheap.
 	EventRateLimited AuthEventType = "rate_limited"
+
+	// The events below are the account-security audit events. Unlike the events above
+	// they fire *after* their action has been committed, so a handler observes durable
+	// state and an error it returns cannot roll the action back — see AuditInfo. Each
+	// carries an AuditInfo on the event's Audit field.
+	EventPasswordChanged         AuthEventType = "password_changed"
+	EventEmailChangeRequested    AuthEventType = "email_change_requested"
+	EventEmailChangeConfirmed    AuthEventType = "email_change_confirmed"
+	EventEmailChangeCancelled    AuthEventType = "email_change_cancelled"
+	EventSessionRevoked          AuthEventType = "session_revoked"
+	EventAllOtherSessionsRevoked AuthEventType = "all_other_sessions_revoked"
+	EventLoginFailed             AuthEventType = "login_failed"
+)
+
+// AuditTarget* name the kind of thing an audit event acted on, so a handler can read
+// AuditInfo.TargetID without switching on the event type.
+const (
+	AuditTargetUser    = "user"
+	AuditTargetSession = "session"
+	AuditTargetEmail   = "email"
+)
+
+// LoginFailure* are the reasons carried by EventLoginFailed.
+const (
+	LoginFailureUnknownAccount  = "unknown_account"
+	LoginFailureBadPassword     = "bad_password"
+	LoginFailureUnverifiedEmail = "unverified_email"
 )
 
 // RateLimitInfo describes a throttling event, exposed to EventRateLimited hooks.
@@ -49,6 +76,38 @@ type RateLimitInfo struct {
 	RetryAfter time.Duration
 }
 
+// AuditInfo describes an account-security action, exposed to handlers for the audit
+// events (EventPasswordChanged, the EventEmailChange* trio, EventSessionRevoked,
+// EventAllOtherSessionsRevoked and EventLoginFailed).
+//
+// These events fire once the action has been committed. A handler therefore observes
+// state that is already durable, and an error it returns is logged rather than failing
+// the request: reporting a 500 would tell the caller their password change was rolled
+// back when it was not. A handler may still short-circuit the response with the usual
+// Hook* sentinels; what it cannot do is undo the action.
+type AuditInfo struct {
+	// TargetType is the kind of thing acted on: AuditTargetUser, AuditTargetSession or
+	// AuditTargetEmail.
+	TargetType string
+	// TargetID identifies the thing acted on, per TargetType: a user id, a session id,
+	// or an email address.
+	TargetID string
+	// IP is the resolved client address, honouring TrustedProxy.
+	IP string
+	// UserAgent is the client's reported user agent.
+	UserAgent string
+	// OccurredAt is when the action happened, in UTC.
+	OccurredAt time.Time
+	// Reason is set only for EventLoginFailed: LoginFailureUnknownAccount,
+	// LoginFailureBadPassword or LoginFailureUnverifiedEmail. It is deliberately more
+	// specific than the HTTP response, which stays uniform across these cases so it
+	// can't be used to enumerate accounts — the distinction is for the consumer's own
+	// records, in-process. For the same reason a handler should do a similar amount of
+	// work whatever the Reason: the responses are byte-identical, so a handler that is
+	// markedly slower for one of them reintroduces a timing signal.
+	Reason string
+}
+
 type AuthEvent struct {
 	// Type of event that was triggered like EventBeforeLogin
 	Type AuthEventType
@@ -60,6 +119,9 @@ type AuthEvent struct {
 	R *http.Request
 	// RateLimit is set only for EventRateLimited and describes the throttling event.
 	RateLimit *RateLimitInfo
+	// Audit is set only for the account-security audit events and describes what
+	// happened. See AuditInfo.
+	Audit *AuditInfo
 }
 
 func NewAuthEvent(eventType AuthEventType, w http.ResponseWriter, r *http.Request, user *store.User) *AuthEvent {
