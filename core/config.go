@@ -35,6 +35,12 @@ type AuthConfig struct {
 	//
 	// Default: enabled, in-memory
 	RateLimit *RateLimitConfig
+	// Password describes what counts as an acceptable password, and optionally enables a
+	// breached-password check. When nil the library's historical rule applies (8 to 72
+	// characters, no breach check).
+	//
+	// Default: nil
+	Password *PasswordConfig
 	// TrustedProxy controls how the client IP is derived for rate limiting and
 	// session records. When nil the library uses the direct peer (RemoteAddr), which
 	// is correct when the app is exposed directly. Set it when behind a proxy or load
@@ -119,12 +125,16 @@ type SessionConfig struct {
 
 // TokenConfig sets how long the single-use tokens emailed to users stay valid.
 // Each field maps to one verification flow; a zero value falls back to the library
-// default. Keep these short — they bound the window an intercepted link is usable.
+// default. Keep these short — they bound the window an intercepted link is usable. The
+// exception is EmailVerification, whose link arrives unprompted and so has to outlast
+// ordinary mail delivery.
 type TokenConfig struct {
 	// EmailVerification is the lifetime of the email-verification link sent on
-	// registration.
+	// registration. It defaults to longer than the other tokens because the link is not
+	// requested interactively: the user may not read their mail for a while, and the
+	// link is recoverable via the resend endpoint in any case.
 	//
-	// Default: 5 minutes
+	// Default: 1 hour
 	EmailVerification time.Duration
 	// PasswordReset is the lifetime of the password-reset link.
 	//

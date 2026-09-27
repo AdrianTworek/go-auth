@@ -23,6 +23,7 @@ type AuthClient struct {
 	cookieOpts   auth.CookieOptions
 	durations    resolvedDurations
 	limiter      RateLimiter
+	password     passwordPolicy
 	rl           resolvedRateLimit
 	trustedProxy *TrustedProxyConfig
 }
@@ -108,7 +109,7 @@ func resolveCookieOptions(s *SessionConfig) auth.CookieOptions {
 func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
 	d := resolvedDurations{
 		session:           auth.DefaultSessionDuration,
-		emailVerification: auth.DefaultTokenDuration,
+		emailVerification: auth.DefaultEmailVerificationTokenDuration,
 		passwordReset:     auth.DefaultTokenDuration,
 		magicLink:         auth.DefaultTokenDuration,
 		emailChange:       auth.DefaultTokenDuration,
@@ -189,6 +190,7 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		rl:           rl,
 		limiter:      buildRateLimiter(config.RateLimit, storage, rl),
 		trustedProxy: config.TrustedProxy,
+		password:     resolvePasswordPolicy(config.Password),
 	}, nil
 }
 

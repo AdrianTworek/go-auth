@@ -17,9 +17,21 @@ func TestResolveDurations(t *testing.T) {
 		d := resolveDurations(nil, nil)
 		assert.Equal(t, auth.DefaultSessionDuration, d.session)
 		assert.Equal(t, auth.DefaultSessionDuration/2, d.refreshThreshold)
-		assert.Equal(t, auth.DefaultTokenDuration, d.emailVerification)
+		assert.Equal(t, auth.DefaultEmailVerificationTokenDuration, d.emailVerification)
 		assert.Equal(t, auth.DefaultTokenDuration, d.passwordReset)
 		assert.Equal(t, auth.DefaultTokenDuration, d.magicLink)
+	})
+
+	// Asserted as literals rather than against the constants, so that changing a
+	// constant can't quietly change the policy this encodes.
+	t.Run("gives email verification a longer default than the other tokens", func(t *testing.T) {
+		d := resolveDurations(nil, nil)
+		assert.Equal(t, time.Hour, d.emailVerification,
+			"must outlast ordinary mail delivery, since this link arrives unprompted")
+		assert.Equal(t, 5*time.Minute, d.passwordReset,
+			"higher-value and requested interactively, so a short window costs nothing")
+		assert.Equal(t, 5*time.Minute, d.magicLink)
+		assert.Equal(t, 5*time.Minute, d.emailChange)
 	})
 
 	t.Run("defaults the refresh threshold to half the configured session duration", func(t *testing.T) {
@@ -47,7 +59,7 @@ func TestResolveDurations(t *testing.T) {
 		d := resolveDurations(&SessionConfig{Duration: 0, RefreshThreshold: 0}, &TokenConfig{})
 		assert.Equal(t, auth.DefaultSessionDuration, d.session)
 		assert.Equal(t, auth.DefaultSessionDuration/2, d.refreshThreshold)
-		assert.Equal(t, auth.DefaultTokenDuration, d.emailVerification)
+		assert.Equal(t, auth.DefaultEmailVerificationTokenDuration, d.emailVerification)
 	})
 }
 
