@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/sessions v1.4.0
 	github.com/jmoiron/sqlx v1.4.0
-	github.com/labstack/echo/v4 v4.15.4
+	github.com/labstack/echo/v4 v4.16.0
 	github.com/lib/pq v1.12.3
 	github.com/markbates/goth v1.82.0
 	github.com/spf13/viper v1.21.0
