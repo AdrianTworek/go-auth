@@ -21,9 +21,17 @@ const (
 	// SessionConfig.Duration is left unset.
 	DefaultSessionDuration = 7 * 24 * time.Hour
 	// DefaultTokenDuration is the fallback lifetime for emailed single-use tokens
-	// (email verification, password reset, magic link) when the matching
-	// TokenConfig field is left unset.
+	// (password reset, magic link, email change) when the matching TokenConfig field is
+	// left unset. These are requested interactively by someone waiting for the mail and
+	// grant immediate account access, so the window stays short.
 	DefaultTokenDuration = 5 * time.Minute
+	// DefaultEmailVerificationTokenDuration is the fallback lifetime for the
+	// verification link sent at registration. It is longer than DefaultTokenDuration
+	// because this link arrives unprompted: mail delivery routinely takes more than a
+	// few minutes (a queued relay, a greylisting delay, a user who reads mail later),
+	// and a dead link is a user's first experience of the product. The token is still
+	// single-use.
+	DefaultEmailVerificationTokenDuration = time.Hour
 
 	SessionTokenBytes = 32
 	EmailTokenBytes   = 64
