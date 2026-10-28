@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.7.0](https://github.com/AdrianTworek/go-auth/compare/v1.6.0...v1.7.0) (2026-10-28)
+
+
+### Features
+
+* **core:** add a configurable password policy and breached-password check ([a525f03](https://github.com/AdrianTworek/go-auth/commit/a525f031bcf467867d9e1f8a19c362611d01d3ff))
+* **core:** add audit events for account-security actions ([1d07e60](https://github.com/AdrianTworek/go-auth/commit/1d07e605d8429f7bfe22931d442f96fee554b990))
+* **core:** add audit events for account-security actions ([aa4abb4](https://github.com/AdrianTworek/go-auth/commit/aa4abb48282af31fa409467d4be46b222febc57d))
+* **core:** add configurable password policy, breached-password check, and a usable verification token default ([2b1b1ce](https://github.com/AdrianTworek/go-auth/commit/2b1b1ced380cc6e9fb6bdf35f769aa41b8696dd0))
+* **core:** give email verification its own longer token default ([3d27050](https://github.com/AdrianTworek/go-auth/commit/3d27050808ef7954bf46ce713de58190393c0ff7))
+
+
+### Bug Fixes
+
+* bump github.com/go-chi/chi/v5 from 5.3.2 to 5.4.0 ([f019182](https://github.com/AdrianTworek/go-auth/commit/f019182f1f9aad64fc5144e4a6217aaff831c0b0))
+* bump github.com/go-chi/chi/v5 from 5.3.2 to 5.4.0 ([206fb6d](https://github.com/AdrianTworek/go-auth/commit/206fb6dfc129b66a3b05023fae34e9902ad6d59c))
+* bump github.com/go-playground/validator/v10 ([b51c334](https://github.com/AdrianTworek/go-auth/commit/b51c334ec723d44b11e4de564459d3af28dbe626))
+* bump github.com/go-playground/validator/v10 from 10.30.4 to 10.30.5 in the go-minor-patch group ([285dfc5](https://github.com/AdrianTworek/go-auth/commit/285dfc52ed8a78d4db234c892656fa886cb38cb4))
+* bump github.com/labstack/echo/v4 from 4.15.4 to 4.16.1 ([88da69c](https://github.com/AdrianTworek/go-auth/commit/88da69cb1cae49bc314cfe326ff547f4d218bea0))
+* bump github.com/labstack/echo/v4 from 4.15.4 to 4.16.1 ([4488bb6](https://github.com/AdrianTworek/go-auth/commit/4488bb6428880b0d5e993a9c3b004ecbd588a5af))
+* bump the go-minor-patch group across 1 directory with 4 updates ([0cc9875](https://github.com/AdrianTworek/go-auth/commit/0cc98750fca1863ccfaf7cf41b483fda5a716fef))
+* bump the go-minor-patch group across 1 directory with 4 updates ([1ad293f](https://github.com/AdrianTworek/go-auth/commit/1ad293f455d04df1d83c8b4aa043ebfe3233cfe1))
+* **core:** record the resolved client IP on session records ([9adb680](https://github.com/AdrianTworek/go-auth/commit/9adb680cc9d5ec39e8a6d351c457eafc2cb4ce98))
+* **core:** record the resolved client IP on session records ([d9ed752](https://github.com/AdrianTworek/go-auth/commit/d9ed752600c548fa6a183c2eef2186e6a1b1b0d8))
+* **core:** tighten audit events after review ([7e3d2f5](https://github.com/AdrianTworek/go-auth/commit/7e3d2f51f50555e1723bbe44509748a3e471af42))
+
 ## [1.6.0](https://github.com/AdrianTworek/go-auth/compare/v1.5.0...v1.6.0) (2026-09-26)
 
 
