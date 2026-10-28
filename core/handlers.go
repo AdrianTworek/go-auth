@@ -26,8 +26,8 @@ const genericVerificationMessage = "If an account with that email exists and is 
 func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 	type registerRequest struct {
 		Email           string `json:"email" validate:"required,min=3,max=255,email"`
-		Password        string `json:"password" validate:"required,min=8,max=72"`
-		ConfirmPassword string `json:"confirmPassword" validate:"required,min=8,max=72,eqfield=Password"`
+		Password        string `json:"password" validate:"required"`
+		ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=Password"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +38,11 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 		}
 
 		if !ac.guardRegister(w, r) {
+			return
+		}
+
+		if err := ac.checkPassword(r.Context(), req.Password, req.Email); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -845,7 +850,7 @@ func (ac *AuthClient) SendPasswordResetLinkHandler() http.HandlerFunc {
 
 func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) http.HandlerFunc {
 	type request struct {
-		Password        string `json:"password" validate:"required,min=8,max=72"`
+		Password        string `json:"password" validate:"required"`
 		ConfirmPassword string `json:"confirmPassword" validate:"eqfield=Password"`
 	}
 
@@ -890,6 +895,17 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 		user, err := ac.store.User.GetByID(r.Context(), tx, token.UserID.String)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "Failed to get user")
+			return
+		}
+
+		// Checked here, inside the transaction, because the token is what identifies the
+		// account — the policy needs that address for its email-similarity rule. Assigning
+		// to err matters: it makes the deferred rollback restore the single-use token, so a
+		// rejected password doesn't leave the user holding a dead reset link. When the
+		// breach check is enabled this holds the transaction open across one bounded
+		// outbound lookup, which is the price of not burning the token.
+		if err = ac.checkPassword(r.Context(), req.Password, user.Email); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -942,8 +958,8 @@ func (ac *AuthClient) CompletePasswordResetHandler(extractor ParamExtractor) htt
 func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 	type request struct {
 		CurrentPassword string `json:"currentPassword" validate:"required"`
-		NewPassword     string `json:"newPassword" validate:"required,min=8,max=72"`
-		ConfirmPassword string `json:"confirmPassword" validate:"required,min=8,max=72,eqfield=NewPassword"`
+		NewPassword     string `json:"newPassword" validate:"required"`
+		ConfirmPassword string `json:"confirmPassword" validate:"required,eqfield=NewPassword"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -977,6 +993,13 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 
 		if req.NewPassword == req.CurrentPassword {
 			writeJSONError(w, http.StatusBadRequest, "New password must be different from the current password")
+			return
+		}
+
+		// After re-authentication, so only a caller who already proved they hold the
+		// current password can trigger an outbound breach lookup.
+		if err := ac.checkPassword(r.Context(), req.NewPassword, user.Email); err != nil {
+			writeJSONError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 
