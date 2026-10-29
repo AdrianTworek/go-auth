@@ -45,7 +45,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		newUser := store.NewUser(req.Email, false, nil, nil, nil, nil)
+		newUser := store.NewUser(req.Email, false, nil, nil)
 		if err := newUser.Password.Set(req.Password); err != nil {
 			serverError(w, r, err)
 			return
@@ -687,8 +687,6 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 					true,
 					nil,
 					nil,
-					nil,
-					nil,
 				)
 
 				cont, err := ac.hookStore.Trigger(
@@ -1070,8 +1068,8 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 // sent to the NEW address and the change only takes effect when ConfirmEmailChangeHandler
 // consumes that token, so the account email is never set to an unverified address.
 //
-// OAuth-linked accounts are rejected: OAuthCallbackHandler matches returning users by
-// email, so changing it would orphan the account on the next OAuth sign-in. Password
+// OAuth-linked accounts are allowed through: a provider link is identified by the
+// provider's own account id, so changing the address no longer orphans it. Password
 // accounts must re-authenticate with their current password; magic-link-only accounts
 // have no password, so their session plus the new-email verification is the control.
 func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
@@ -1094,11 +1092,6 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 		}
 
 		if !ac.guardSensitive(w, r, "change_email", user.ID) {
-			return
-		}
-
-		if user.OAuthProvider != nil && user.OAuthProvider.Valid {
-			writeJSONError(w, http.StatusConflict, "Your email is managed by your linked "+user.OAuthProvider.String+" account and can't be changed here.")
 			return
 		}
 

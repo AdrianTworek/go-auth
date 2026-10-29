@@ -100,8 +100,11 @@ func Test_Integration_OAuthCallbackCreatesUser(t *testing.T) {
 	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, fakeUser.Email)
 	require.NoError(t, err)
 	assert.True(t, dbUser.EmailVerified)
-	assert.Equal(t, "fake", dbUser.OAuthProvider.String)
-	assert.Equal(t, "fake-123", dbUser.OAuthID.String)
+	linked, err := app.storage.Account.ListForUser(t.Context(), dbUser.ID)
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	assert.Equal(t, "fake", linked[0].Provider)
+	assert.Equal(t, "fake-123", linked[0].ProviderAccountID)
 
 	c := sessionCookie(rec)
 	require.NotNil(t, c)

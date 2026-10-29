@@ -1,6 +1,7 @@
 package core
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,6 +10,9 @@ import (
 	"github.com/markbates/goth/gothic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
+	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
 // --- helpers ---------------------------------------------------------------
@@ -227,4 +231,187 @@ func Test_Integration_AuditAccountLinked(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, linked, 1)
 	assert.Equal(t, linked[0].ID, ev.Audit.TargetID, "the event names the link it created")
+}
+
+// --- endpoints -------------------------------------------------------------
+
+type accountListResponse struct {
+	Data struct {
+		Accounts []struct {
+			ID        string `json:"id"`
+			Provider  string `json:"provider"`
+			Email     string `json:"email"`
+			CreatedAt string `json:"createdAt"`
+		} `json:"accounts"`
+	} `json:"data"`
+}
+
+func decodeAccountList(t *testing.T, rr *httptest.ResponseRecorder) accountListResponse {
+	t.Helper()
+	var resp accountListResponse
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	return resp
+}
+
+// linkAccount attaches a provider to a user directly, for tests that are about the
+// endpoints rather than the callback.
+func linkAccount(t *testing.T, app *TestApp, userID, provider, providerAccountID, email string) *store.Account {
+	t.Helper()
+	account, err := app.storage.Account.Create(t.Context(), nil, &store.Account{
+		UserID:            userID,
+		Provider:          provider,
+		ProviderAccountID: providerAccountID,
+		Email:             auth.NewNullString(email),
+	})
+	require.NoError(t, err)
+	return account
+}
+
+func Test_Integration_ListLinkedAccounts(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	uid := userID(t, db, TestUserData[DefaultUser].Email)
+	linkAccount(t, app, uid, "alpha", "alpha-1", "me@alpha.example")
+	linkAccount(t, app, uid, "beta", "beta-1", "me@beta.example")
+
+	rr := doGet(t, app, PathAccounts, cookie)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	resp := decodeAccountList(t, rr)
+	require.Len(t, resp.Data.Accounts, 2)
+
+	providers := []string{resp.Data.Accounts[0].Provider, resp.Data.Accounts[1].Provider}
+	assert.ElementsMatch(t, []string{"alpha", "beta"}, providers)
+
+	// The provider's own account identifier is not part of the projection.
+	assert.NotContains(t, rr.Body.String(), "alpha-1")
+}
+
+func Test_Integration_ListLinkedAccountsIsScopedToTheCaller(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	other := userID(t, db, TestUserData[UnverifiedUser].Email)
+	linkAccount(t, app, other, "alpha", "alpha-other", "other@alpha.example")
+
+	rr := doGet(t, app, PathAccounts, cookie)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.Empty(t, decodeAccountList(t, rr).Data.Accounts)
+}
+
+func Test_Integration_UnlinkAccount(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	uid := userID(t, db, TestUserData[DefaultUser].Email)
+	account := linkAccount(t, app, uid, "alpha", "alpha-1", "me@alpha.example")
+
+	rr := doDelete(t, app, PathAccounts+"/"+account.ID, cookie)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	remaining, err := app.storage.Account.ListForUser(t.Context(), uid)
+	require.NoError(t, err)
+	assert.Empty(t, remaining)
+}
+
+// Unknown, foreign and malformed ids must be indistinguishable, so the endpoint can't be
+// used to probe for existence — the same rule revoke-one-session follows.
+func Test_Integration_UnlinkAccountNotFoundMatrix(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	otherID := userID(t, db, TestUserData[UnverifiedUser].Email)
+	foreign := linkAccount(t, app, otherID, "alpha", "alpha-other", "other@alpha.example")
+
+	for name, id := range map[string]string{
+		"unknown":   "00000000-0000-0000-0000-000000000000",
+		"foreign":   foreign.ID,
+		"malformed": "not-a-uuid",
+	} {
+		t.Run(name, func(t *testing.T) {
+			rr := doDelete(t, app, PathAccounts+"/"+id, cookie)
+			assert.Equal(t, http.StatusNotFound, rr.Code)
+		})
+	}
+
+	// The foreign link survives the attempt.
+	stillThere, err := app.storage.Account.ListForUser(t.Context(), otherID)
+	require.NoError(t, err)
+	assert.Len(t, stillThere, 1)
+}
+
+// Removing the only way a user can sign in would lock them out of their own account, so
+// it is refused rather than allowed.
+func Test_Integration_UnlinkLastSignInMethodIsRefused(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	// A provider-only account: no password, one link.
+	uid := insertPasswordlessUser(t, db, "provider-only@example.com")
+	account := linkAccount(t, app, uid, "alpha", "alpha-only", "provider-only@example.com")
+	cookie := sessionCookieFor(t, app, uid)
+
+	rr := doDelete(t, app, PathAccounts+"/"+account.ID, cookie)
+	require.Equal(t, http.StatusConflict, rr.Code)
+	assert.Contains(t, rr.Body.String(), "only way")
+
+	// The refusal must leave the link in place, or the guard achieved nothing.
+	remaining, err := app.storage.Account.ListForUser(t.Context(), uid)
+	require.NoError(t, err)
+	assert.Len(t, remaining, 1)
+}
+
+func Test_Integration_UnlinkIsAllowedWhenAPasswordRemains(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	uid := userID(t, db, TestUserData[DefaultUser].Email)
+	account := linkAccount(t, app, uid, "alpha", "alpha-1", "me@alpha.example")
+
+	rr := doDelete(t, app, PathAccounts+"/"+account.ID, cookie)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// The password still signs them in.
+	assertCanLogin(t, app, TestUserData[DefaultUser].Email, TestUserData[DefaultUser].Password)
+}
+
+func Test_Integration_UnlinkWhenAnotherProviderRemains(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	uid := insertPasswordlessUser(t, db, "two-links@example.com")
+	first := linkAccount(t, app, uid, "alpha", "alpha-1", "two-links@example.com")
+	linkAccount(t, app, uid, "beta", "beta-1", "two-links@example.com")
+	cookie := sessionCookieFor(t, app, uid)
+
+	rr := doDelete(t, app, PathAccounts+"/"+first.ID, cookie)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	remaining, err := app.storage.Account.ListForUser(t.Context(), uid)
+	require.NoError(t, err)
+	assert.Len(t, remaining, 1)
+}
+
+func Test_Integration_AuditAccountUnlinked(t *testing.T) {
+	rec := &auditRecorder{}
+	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAccountUnlinked))
+	defer CleanupIntegration(t, dbCtr, db)
+
+	cookie := loginCookie(t, newTestHelper(t, app), DefaultUser)
+	uid := userID(t, db, TestUserData[DefaultUser].Email)
+	account := linkAccount(t, app, uid, "alpha", "alpha-1", "me@alpha.example")
+
+	require.Equal(t, http.StatusOK, doDelete(t, app, PathAccounts+"/"+account.ID, cookie).Code)
+
+	ev := rec.only(t, EventAccountUnlinked)
+	require.NotNil(t, ev.Audit)
+	assert.Equal(t, AuditTargetAccount, ev.Audit.TargetType)
+	assert.Equal(t, account.ID, ev.Audit.TargetID)
+	assert.Equal(t, "alpha", ev.Audit.Provider)
 }

@@ -63,4 +63,7 @@ func InitAuth(ac *core.AuthClient, r *mux.Router) {
 	r.Handle(core.PathSessions, mw(ac.ListSessionsHandler())).Methods(http.MethodGet)
 	r.Handle(core.PathSessions, mw(ac.RevokeOtherSessionsHandler())).Methods(http.MethodDelete)
 	r.Handle(core.PathSession, mw(ac.RevokeSessionHandler())).Methods(http.MethodDelete)
+
+	r.Handle(core.PathAccounts, mw(ac.ListAccountsHandler())).Methods(http.MethodGet)
+	r.Handle(core.PathAccount, mw(ac.UnlinkAccountHandler())).Methods(http.MethodDelete)
 }

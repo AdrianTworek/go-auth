@@ -66,9 +66,9 @@ func (ac *AuthClient) triggerAudit(ctx context.Context, event *AuthEvent) bool {
 	return cont
 }
 
-// auditAccountLinked emits the provider-link audit event. Like every audit event it
-// fires after the change is committed, so a handler error is logged rather than failing
-// the request.
+// auditAccountLinked and auditAccountUnlinked emit the provider-link audit events. Like
+// every audit event they fire after the change is committed, so a handler error is
+// logged rather than failing the request.
 func (ac *AuthClient) auditAccountLinked(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -90,6 +90,15 @@ func (ac *AuthClient) auditAccount(
 		TargetID:   account.ID,
 		Provider:   account.Provider,
 	}))
+}
+
+func (ac *AuthClient) auditAccountUnlinked(
+	w http.ResponseWriter,
+	r *http.Request,
+	user *store.User,
+	account *store.Account,
+) bool {
+	return ac.auditAccount(w, r, EventAccountUnlinked, user, account)
 }
 
 // auditLoginFailed emits EventLoginFailed for a rejected login attempt. The submitted

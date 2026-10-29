@@ -169,13 +169,9 @@ func newAccountFor(userID string, gothUser goth.User) *store.Account {
 
 // applyProviderAttributes copies what the provider tells us onto the user: the email is
 // verified by definition, and the avatar is refreshed unless the user has overridden it.
-//
-// It also keeps the legacy single-provider columns in step. Those columns are the thing
-// this feature replaces, but they survive the expand half of the migration so it stays
-// revertible; the contract migration drops them and this with it.
+// Which providers can sign this user in is no longer part of the user record at all —
+// that is what the accounts table answers.
 func applyProviderAttributes(user *store.User, gothUser goth.User) {
-	user.OAuthProvider = auth.NewNullString(gothUser.Provider)
-	user.OAuthID = auth.NewNullString(gothUser.UserID)
 	user.EmailVerified = true
 
 	if user.AvatarSource == nil || !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {

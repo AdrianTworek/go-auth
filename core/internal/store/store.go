@@ -19,6 +19,7 @@ var (
 type Storage struct {
 	User interface {
 		Create(ctx context.Context, tx *sqlx.Tx, user *User) error
+		LockForUpdate(ctx context.Context, tx *sqlx.Tx, id string) error
 		GetByID(ctx context.Context, tx *sqlx.Tx, id string) (*User, error)
 		GetByEmail(ctx context.Context, tx *sqlx.Tx, email string) (*User, error)
 		Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User, error)

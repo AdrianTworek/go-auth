@@ -27,6 +27,8 @@ const (
 	PathCancelEmailChange  = "/auth/change-email/{token}/cancel"
 	PathSessions           = "/auth/sessions"
 	PathSession            = "/auth/sessions/{id}"
+	PathAccounts           = "/auth/accounts"
+	PathAccount            = "/auth/accounts/{id}"
 )
 
 // ColonParamPattern converts a canonical "{name}" path pattern to the ":name" form

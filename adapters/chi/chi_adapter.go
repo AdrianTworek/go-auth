@@ -63,4 +63,7 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 	r.Method(http.MethodGet, core.PathSessions, mw(ac.ListSessionsHandler()))
 	r.Method(http.MethodDelete, core.PathSessions, mw(ac.RevokeOtherSessionsHandler()))
 	r.Method(http.MethodDelete, core.PathSession, mw(ac.RevokeSessionHandler()))
+
+	r.Method(http.MethodGet, core.PathAccounts, mw(ac.ListAccountsHandler()))
+	r.Method(http.MethodDelete, core.PathAccount, mw(ac.UnlinkAccountHandler()))
 }
