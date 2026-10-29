@@ -43,6 +43,8 @@ const (
 	EventSessionRevoked          AuthEventType = "session_revoked"
 	EventAllOtherSessionsRevoked AuthEventType = "all_other_sessions_revoked"
 	EventLoginFailed             AuthEventType = "login_failed"
+	EventAccountLinked           AuthEventType = "account_linked"
+	EventAccountUnlinked         AuthEventType = "account_unlinked"
 )
 
 // AuditTarget* name the kind of thing an audit event acted on, so a handler can read
@@ -51,6 +53,7 @@ const (
 	AuditTargetUser    = "user"
 	AuditTargetSession = "session"
 	AuditTargetEmail   = "email"
+	AuditTargetAccount = "account"
 )
 
 // LoginFailure* are the reasons carried by EventLoginFailed.
@@ -98,6 +101,10 @@ type AuditInfo struct {
 	UserAgent string
 	// OccurredAt is when the action happened, in UTC.
 	OccurredAt time.Time
+	// Provider is set only for EventAccountLinked and EventAccountUnlinked, naming the
+	// OAuth provider the linked account belongs to. TargetID identifies the link itself,
+	// which is of little use to a handler without knowing which provider it was.
+	Provider string
 	// Reason is set only for EventLoginFailed: LoginFailureUnknownAccount,
 	// LoginFailureBadPassword or LoginFailureUnverifiedEmail. It is deliberately more
 	// specific than the HTTP response, which stays uniform across these cases so it

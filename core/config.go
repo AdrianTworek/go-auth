@@ -53,6 +53,18 @@ type AuthConfig struct {
 type OAuthConfig struct {
 	// Goth provider objects that are used to setup goth authentication without any additional configuration.
 	Providers []goth.Provider
+	// TrustedProviders names the providers whose asserted email address may be used to
+	// attach them automatically to an existing account. Naming a provider here is a
+	// statement that you trust it to verify email addresses before asserting them.
+	//
+	// Leave it empty and a provider signing in with an address that already belongs to
+	// an account is refused, and told to sign in by their existing method and link
+	// deliberately. That is the safe behaviour, and it is the default: a provider that
+	// lets its users set an arbitrary address would otherwise be a route into somebody
+	// else's account.
+	//
+	// Default: nil (never auto-link)
+	TrustedProviders []string
 }
 
 type DatabaseConfig struct {

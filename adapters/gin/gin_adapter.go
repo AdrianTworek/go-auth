@@ -61,4 +61,7 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 	r.GET(core.PathSessions, gin.WrapH(mw(ac.ListSessionsHandler())))
 	r.DELETE(core.PathSessions, gin.WrapH(mw(ac.RevokeOtherSessionsHandler())))
 	r.DELETE(core.ColonParamPattern(core.PathSession), gin.WrapH(mw(ac.RevokeSessionHandler())))
+
+	r.GET(core.PathAccounts, gin.WrapH(mw(ac.ListAccountsHandler())))
+	r.DELETE(core.ColonParamPattern(core.PathAccount), gin.WrapH(mw(ac.UnlinkAccountHandler())))
 }

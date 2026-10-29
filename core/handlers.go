@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/markbates/goth/gothic"
 
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
@@ -46,7 +45,7 @@ func (ac *AuthClient) RegisterHandler() http.HandlerFunc {
 			return
 		}
 
-		newUser := store.NewUser(req.Email, false, nil, nil, nil, nil)
+		newUser := store.NewUser(req.Email, false, nil, nil)
 		if err := newUser.Password.Set(req.Password); err != nil {
 			serverError(w, r, err)
 			return
@@ -688,8 +687,6 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 					true,
 					nil,
 					nil,
-					nil,
-					nil,
 				)
 
 				cont, err := ac.hookStore.Trigger(
@@ -1071,8 +1068,8 @@ func (ac *AuthClient) ChangePasswordHandler() http.HandlerFunc {
 // sent to the NEW address and the change only takes effect when ConfirmEmailChangeHandler
 // consumes that token, so the account email is never set to an unverified address.
 //
-// OAuth-linked accounts are rejected: OAuthCallbackHandler matches returning users by
-// email, so changing it would orphan the account on the next OAuth sign-in. Password
+// OAuth-linked accounts are allowed through: a provider link is identified by the
+// provider's own account id, so changing the address no longer orphans it. Password
 // accounts must re-authenticate with their current password; magic-link-only accounts
 // have no password, so their session plus the new-email verification is the control.
 func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
@@ -1095,11 +1092,6 @@ func (ac *AuthClient) ChangeEmailHandler() http.HandlerFunc {
 		}
 
 		if !ac.guardSensitive(w, r, "change_email", user.ID) {
-			return
-		}
-
-		if user.OAuthProvider != nil && user.OAuthProvider.Valid {
-			writeJSONError(w, http.StatusConflict, "Your email is managed by your linked "+user.OAuthProvider.String+" account and can't be changed here.")
 			return
 		}
 
@@ -1305,143 +1297,5 @@ func (ac *AuthClient) CancelEmailChangeHandler(extractor ParamExtractor) http.Ha
 		}
 
 		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "The pending email change has been cancelled."})
-	}
-}
-
-func (ac *AuthClient) OAuthCallbackHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		gothUser, err := gothic.CompleteUserAuth(w, r)
-		if err != nil {
-			slog.Error("oauth completion failed", "error", err)
-			writeJSONError(w, http.StatusUnauthorized, "Unauthorized")
-			return
-		}
-
-		tx, err := ac.store.Transaction.Begin()
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-
-		var cont bool
-		defer func(tx *sqlx.Tx) {
-			if err != nil || !cont {
-				err := ac.store.Transaction.Rollback(tx)
-				slog.Error("rollback error", "error", err.Error())
-			}
-		}(tx)
-
-		user, err := ac.store.User.GetByEmail(r.Context(), nil, gothUser.Email)
-		if err != nil {
-			if errors.Is(err, store.ErrNotFound) {
-				// User does not exist, create a new one
-				user = &store.User{
-					Email:         gothUser.Email,
-					AvatarURL:     auth.NewNullString(gothUser.AvatarURL),
-					AvatarSource:  auth.NewNullString("oauth"),
-					EmailVerified: true,
-					OAuthProvider: auth.NewNullString(gothUser.Provider),
-					OAuthID:       auth.NewNullString(gothUser.UserID),
-				}
-
-				cont, err = ac.hookStore.Trigger(
-					r.Context(),
-					NewAuthEvent(EventBeforeRegistration, w, r, user),
-				)
-				if err != nil {
-					serverError(w, r, err)
-					return
-				}
-				if !cont {
-					return
-				}
-
-				if err = ac.store.User.Create(r.Context(), tx, user); err != nil {
-					serverError(w, r, err)
-					return
-				}
-
-				user, err = ac.store.User.GetByEmail(r.Context(), tx, gothUser.Email)
-				if err != nil {
-					serverError(w, r, err)
-					return
-				}
-
-				cont, err = ac.hookStore.Trigger(
-					r.Context(),
-					NewAuthEvent(EventAfterRegistration, w, r, user),
-				)
-				if err != nil {
-					serverError(w, r, err)
-				}
-				if !cont {
-					return
-				}
-
-			} else {
-				serverError(w, r, err)
-				return
-			}
-		}
-
-		// User exists, update OAuth provider and ID. The field is nil when the column
-		// is NULL (e.g. an existing password-only account), which counts as "not set".
-		if user.OAuthProvider == nil || !user.OAuthProvider.Valid || user.OAuthProvider.String != gothUser.Provider {
-			user.OAuthProvider = auth.NewNullString(gothUser.Provider)
-			user.OAuthID = auth.NewNullString(gothUser.UserID)
-			user.EmailVerified = true
-			user, err = ac.store.User.Update(r.Context(), tx, user)
-			if err != nil {
-				serverError(w, r, err)
-				return
-			}
-		}
-
-		// Update avatar URL if it's from OAuth provider or not set (nil = NULL = not set).
-		if user.AvatarSource == nil || !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
-			user.AvatarURL = auth.NewNullString(gothUser.AvatarURL)
-			user.AvatarSource = auth.NewNullString("oauth")
-			user, err = ac.store.User.Update(r.Context(), tx, user)
-			if err != nil {
-				serverError(w, r, err)
-				return
-			}
-		}
-
-		sessionExpiresAt := ac.sessionExpiry()
-		token, err := ac.store.Session.Create(
-			r.Context(),
-			tx,
-			&store.Session{
-				UserID:    user.ID,
-				IPAddress: ac.clientIP(r),
-				UserAgent: r.UserAgent(),
-				ExpiresAt: sessionExpiresAt,
-			},
-		)
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-		if err = tx.Commit(); err != nil {
-			serverError(w, r, err)
-			return
-		}
-
-		http.SetCookie(w, ac.newSessionCookie(token, sessionExpiresAt))
-
-		cont, err = ac.hookStore.Trigger(
-			r.Context(),
-			NewAuthEvent(EventOAuthSuccess, w, r, user),
-		)
-		if err != nil {
-			serverError(w, r, err)
-			return
-		}
-		if !cont {
-			return
-		}
-
-		writeJSONResponse(w, http.StatusOK, map[string]any{"message": "User logged in successfully"})
 	}
 }
