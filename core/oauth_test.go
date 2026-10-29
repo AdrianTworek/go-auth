@@ -40,13 +40,16 @@ func (s *fakeOAuthSession) GetAuthURL() (string, error)                         
 func (s *fakeOAuthSession) Marshal() string                                      { return "{}" }
 func (s *fakeOAuthSession) Authorize(goth.Provider, goth.Params) (string, error) { return "", nil }
 
-func newOAuthClient(t *testing.T, app *TestApp, user goth.User) *AuthClient {
+func newOAuthClient(t *testing.T, app *TestApp, user goth.User, trustedProviders ...string) *AuthClient {
 	t.Helper()
 	ac, err := NewAuthClient(&AuthConfig{
 		Db:            &DatabaseConfig{Dsn: app.env.DSN},
 		SessionSecret: app.env.SessionSecret,
 		Mailer:        app.mailer,
-		OAuth:         &OAuthConfig{Providers: []goth.Provider{&fakeOAuthProvider{name: "fake", user: user}}},
+		OAuth: &OAuthConfig{
+			Providers:        []goth.Provider{&fakeOAuthProvider{name: "fake", user: user}},
+			TrustedProviders: trustedProviders,
+		},
 	})
 	require.NoError(t, err)
 	ac.SetupGoth() // registers the provider and configures gothic (global state)
@@ -105,29 +108,57 @@ func Test_Integration_OAuthCallbackCreatesUser(t *testing.T) {
 	assert.NotEmpty(t, c.Value)
 }
 
-func Test_Integration_OAuthCallbackLinksExistingUser(t *testing.T) {
+// An untrusted provider asserting an address that already belongs to an account is
+// refused. This is the takeover path: a provider that lets its users set an arbitrary
+// email could otherwise claim somebody else's account by asserting their address.
+func Test_Integration_OAuthCallbackRefusesUntrustedProviderOnMatchingEmail(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
-	// DefaultUser is a seeded password account; logging in via OAuth with the same
-	// email links the OAuth identity to it.
-	fakeUser := goth.User{
-		Provider: "fake",
-		UserID:   "fake-999",
-		Email:    TestUserData[DefaultUser].Email,
-	}
-	ac := newOAuthClient(t, app, fakeUser)
+	victimEmail := TestUserData[DefaultUser].Email
+	attacker := goth.User{Provider: "fake", UserID: "fake-999", Email: victimEmail}
+
+	// No trusted providers configured, which is the default.
+	ac := newOAuthClient(t, app, attacker)
 
 	rec := httptest.NewRecorder()
 	ac.OAuthCallbackHandler()(rec, newOAuthCallbackRequest(t))
 
-	assert.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	assert.Nil(t, sessionCookie(rec), "a refused sign-in must not issue a session")
 
-	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, fakeUser.Email)
+	// The attempt must leave no trace on the victim's account.
+	linked, err := app.storage.Account.ListForUser(t.Context(), userID(t, db, victimEmail))
 	require.NoError(t, err)
-	assert.Equal(t, "fake", dbUser.OAuthProvider.String)
-	assert.Equal(t, "fake-999", dbUser.OAuthID.String)
+	assert.Empty(t, linked, "no link may be created by a refused attempt")
+
+	dbUser, err := app.storage.User.GetByEmail(t.Context(), nil, victimEmail)
+	require.NoError(t, err)
+	assert.True(t, dbUser.Password.Compare(TestUserData[DefaultUser].Password),
+		"the victim's credentials are untouched")
+}
+
+// A provider the operator has declared trustworthy may attach itself to an existing
+// account on a matching email, which is the convenience the trust list buys.
+func Test_Integration_OAuthCallbackLinksTrustedProviderToExistingUser(t *testing.T) {
+	app, dbCtr, db := SetupIntegration(t, nil)
+	defer CleanupIntegration(t, dbCtr, db)
+
+	email := TestUserData[DefaultUser].Email
+	fakeUser := goth.User{Provider: "fake", UserID: "fake-999", Email: email}
+	ac := newOAuthClient(t, app, fakeUser, "fake")
+
+	rec := httptest.NewRecorder()
+	ac.OAuthCallbackHandler()(rec, newOAuthCallbackRequest(t))
+
+	require.Equal(t, http.StatusOK, rec.Code)
 	require.NotNil(t, sessionCookie(rec))
+
+	linked, err := app.storage.Account.ListForUser(t.Context(), userID(t, db, email))
+	require.NoError(t, err)
+	require.Len(t, linked, 1)
+	assert.Equal(t, "fake", linked[0].Provider)
+	assert.Equal(t, "fake-999", linked[0].ProviderAccountID)
 }
 
 func Test_Integration_OAuthCallbackUnauthorizedWithoutSession(t *testing.T) {
