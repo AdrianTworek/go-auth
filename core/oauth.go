@@ -241,6 +241,51 @@ func (ac *AuthClient) oauthCompleteSignIn(
 		return
 	}
 
+	// An existing user may hold a second factor. Unlike the other sign-in paths this one
+	// is configurable: an operator who considers the provider's own second factor
+	// sufficient can exempt it, but challenging is the default, so the safe behaviour is
+	// what they get without deciding anything.
+	//
+	// The check lives here rather than inside issueOAuthSession because oauthRegister
+	// shares that helper, and a user created moments ago cannot have a factor — putting
+	// it in the helper would be dead code for half its callers and would suggest to a
+	// reader that registration is challenged.
+	required := false
+	if !ac.mfa.oauthSatisfies {
+		if required, err = ac.secondFactorRequired(r.Context(), tx, user.ID); err != nil {
+			serverError(w, r, err)
+			return
+		}
+	}
+
+	if required {
+		var challenge string
+		if challenge, err = ac.issueChallenge(r.Context(), tx, user.ID); err != nil {
+			serverError(w, r, err)
+			return
+		}
+		// The link and the refreshed profile are legitimate and the sign-in is genuinely
+		// in progress, so the transaction commits; only the session is withheld.
+		// Discarding the link instead would mean a user with a second factor could never
+		// finish attaching a provider.
+		if err = ac.store.Transaction.Commit(tx); err != nil {
+			serverError(w, r, err)
+			return
+		}
+		committed = true
+
+		if linked != nil && !ac.auditAccountLinked(w, r, user, linked) {
+			return
+		}
+		// EventOAuthSuccess is withheld for the same reason EventAfterLogin is: no
+		// session exists. A consumer redirecting a browser away from this callback
+		// should hook EventMFAChallengeIssued, which fires below.
+		if ac.challengeIssuedHook(w, r, user, challenge, MFAChallengeFlowOAuth) {
+			writeChallengeResponse(w, challenge)
+		}
+		return
+	}
+
 	token, expiresAt, err := ac.issueOAuthSession(r, tx, user.ID)
 	if err != nil {
 		serverError(w, r, err)

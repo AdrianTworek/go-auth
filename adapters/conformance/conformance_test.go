@@ -44,6 +44,7 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		Session: &core.SessionConfig{
 			MagicLinkSuccessfulRedirectURL: "http://localhost/success",
 			MagicLinkFailedRedirectURL:     "http://localhost/failed",
+			MagicLinkMFARedirectURL:        "http://localhost/mfa",
 		},
 		OAuth: &core.OAuthConfig{Providers: []goth.Provider{
 			github.New("client-id", "client-secret", "http://localhost"+core.PathOAuthCallback),
@@ -135,6 +136,7 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodPost, core.PathMFATOTPDisable},
 		{http.MethodPost, core.PathMFABackupCodes},
 		{http.MethodGet, core.PathMFAStatus},
+		{http.MethodPost, core.PathMFAVerify},
 	}
 
 	for name, probe := range probers {

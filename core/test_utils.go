@@ -78,6 +78,11 @@ type TestApp struct {
 	config  *AuthConfig
 	mailer  *MockMailer
 	storage *store.Storage
+	// nowFn, when set, replaces the clock on every client Router() builds. Router()
+	// constructs a fresh AuthClient per request, so a test cannot reach in and swap the
+	// field itself; this threads one shared clock through all of them, which is what
+	// makes TOTP skew, replay and challenge expiry testable without sleeping.
+	nowFn func() time.Time
 }
 
 func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
@@ -132,6 +137,9 @@ func (a *TestApp) Router() *chi.Mux {
 	if err != nil {
 		return nil
 	}
+	if a.nowFn != nil {
+		ac.now = a.nowFn
+	}
 
 	// Mirrors the chi adapter, but inlined: the core package's tests can't import an
 	// adapter (it would form an import cycle), so this wires the same canonical path
@@ -181,6 +189,8 @@ func (a *TestApp) Router() *chi.Mux {
 		r.With(mw).Post(PathMFATOTPDisable, ac.DisableTOTPHandler())
 		r.With(mw).Post(PathMFABackupCodes, ac.RegenerateBackupCodesHandler())
 		r.With(mw).Get(PathMFAStatus, ac.MFAStatusHandler())
+		// Public: the caller holds a challenge, not a session.
+		r.Post(PathMFAVerify, ac.MFAVerifyHandler())
 	}
 
 	return r

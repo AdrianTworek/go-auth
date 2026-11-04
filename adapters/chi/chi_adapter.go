@@ -73,5 +73,6 @@ func InitAuth(ac *core.AuthClient, r *chi.Mux) {
 		r.Method(http.MethodPost, core.PathMFATOTPDisable, mw(ac.DisableTOTPHandler()))
 		r.Method(http.MethodPost, core.PathMFABackupCodes, mw(ac.RegenerateBackupCodesHandler()))
 		r.Method(http.MethodGet, core.PathMFAStatus, mw(ac.MFAStatusHandler()))
+		r.Post(core.PathMFAVerify, ac.MFAVerifyHandler())
 	}
 }

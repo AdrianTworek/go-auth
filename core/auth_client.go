@@ -171,6 +171,20 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		return nil, err
 	}
 
+	// Magic-link completion ends in a redirect, so there is no response body to carry a
+	// challenge in. A consumer who has enabled both features and not thought about that
+	// corner should find out at startup rather than when a user with a second factor is
+	// handed a cookieless success page.
+	if mfa.enabled &&
+		config.Session.MagicLinkSuccessfulRedirectURL != "" &&
+		config.Session.MagicLinkFailedRedirectURL != "" &&
+		config.Session.MagicLinkMFARedirectURL == "" {
+		return nil, fmt.Errorf(
+			"Session.MagicLinkMFARedirectURL is required when MFA and magic-link sign-in are both enabled: " +
+				"magic-link completion redirects rather than returning a body, so there is nowhere else to put the challenge",
+		)
+	}
+
 	// Apply a custom bcrypt cost if configured (0 leaves the default).
 	if config.BcryptCost != 0 {
 		if err := auth.SetBcryptCost(config.BcryptCost); err != nil {

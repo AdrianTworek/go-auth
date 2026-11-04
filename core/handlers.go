@@ -256,6 +256,32 @@ func (ac *AuthClient) LoginHandler() http.HandlerFunc {
 			return
 		}
 
+		// The password was right. If this user has a second factor, that is as far as
+		// this request goes: no session is created, and the response carries a challenge
+		// to be exchanged at /auth/mfa/verify.
+		//
+		// The branch sits here, *after* the password check, which is what keeps the
+		// endpoint from being used to discover who has a factor enabled: a wrong
+		// password produces exactly the response it did before this feature existed.
+		//
+		// EventAfterLogin deliberately does not fire — the user is not logged in yet.
+		required, err := ac.secondFactorRequired(r.Context(), nil, user.ID)
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		if required {
+			challenge, err := ac.issueChallenge(r.Context(), nil, user.ID)
+			if err != nil {
+				serverError(w, r, err)
+				return
+			}
+			if ac.challengeIssuedHook(w, r, user, challenge, MFAChallengeFlowLogin) {
+				writeChallengeResponse(w, challenge)
+			}
+			return
+		}
+
 		sessionExpiresAt := ac.sessionExpiry()
 		token, err := ac.store.Session.Create(
 			r.Context(),
@@ -739,6 +765,33 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 				ac.FailedMagicLinkRedirect(w, r)
 				return
 			}
+		}
+
+		// A magic link proves control of the inbox, not possession of the second factor.
+		// Without this branch a user with a factor enabled could sign in by asking for a
+		// magic link, which would make the whole feature decorative — it is the bypass
+		// that is invisible if you reason only about the login endpoint.
+		required, err := ac.secondFactorRequired(r.Context(), tx, user.ID)
+		if err != nil {
+			ac.FailedMagicLinkRedirect(w, r)
+			return
+		}
+		if required {
+			var challenge string
+			if challenge, err = ac.issueChallenge(r.Context(), tx, user.ID); err != nil {
+				ac.FailedMagicLinkRedirect(w, r)
+				return
+			}
+			// The token has been consumed and the user may have been created or marked
+			// verified, so the transaction still commits. Only the session is withheld.
+			if err = ac.store.Transaction.Commit(tx); err != nil {
+				ac.FailedMagicLinkRedirect(w, r)
+				return
+			}
+			if ac.challengeIssuedHook(w, r, user, challenge, MFAChallengeFlowMagicLink) {
+				ac.magicLinkMFARedirect(w, r, challenge)
+			}
+			return
 		}
 
 		sessionExpiresAt := ac.sessionExpiry()

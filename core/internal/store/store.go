@@ -45,6 +45,7 @@ type Storage struct {
 	Verification interface {
 		Create(ctx context.Context, tx *sqlx.Tx, verification *Verification) (string, error)
 		Consume(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
+		GetByToken(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 		DeleteExpired(ctx context.Context) error
 	}

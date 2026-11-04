@@ -74,5 +74,6 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 		e.POST(core.PathMFATOTPDisable, echo.WrapHandler(mw(ac.DisableTOTPHandler())))
 		e.POST(core.PathMFABackupCodes, echo.WrapHandler(mw(ac.RegenerateBackupCodesHandler())))
 		e.GET(core.PathMFAStatus, echo.WrapHandler(mw(ac.MFAStatusHandler())))
+		e.POST(core.PathMFAVerify, echo.WrapHandler(ac.MFAVerifyHandler()))
 	}
 }

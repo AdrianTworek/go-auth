@@ -25,6 +25,10 @@ import (
 func mfaConfig() *AuthConfig {
 	c := NewTestAuthConfig(nil, nil, nil)
 	c.MFA = &MFAConfig{EncryptionKey: testHexKey}
+	// NewTestAuthConfig configures magic-link sign-in, which makes this required:
+	// construction refuses the combination without it, since magic-link completion
+	// redirects rather than returning a body.
+	c.Session.MagicLinkMFARedirectURL = "http://localhost:6969/mfa"
 	return c
 }
 
@@ -520,6 +524,7 @@ func Test_Integration_MFAAuditEvents(t *testing.T) {
 		EventMFAVerificationFailed,
 	)
 	c.MFA = &MFAConfig{EncryptionKey: testHexKey}
+	c.Session.MagicLinkMFARedirectURL = "http://localhost:6969/mfa"
 
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -574,6 +579,7 @@ func Test_Integration_MFAAuditEvents(t *testing.T) {
 func Test_Integration_MFAIssuerIsConfigurable(t *testing.T) {
 	c := NewTestAuthConfig(nil, nil, nil)
 	c.MFA = &MFAConfig{EncryptionKey: testHexKey, Issuer: "Acme: Staging"}
+	c.Session.MagicLinkMFARedirectURL = "http://localhost:6969/mfa"
 
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)

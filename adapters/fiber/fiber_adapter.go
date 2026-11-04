@@ -72,5 +72,6 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 		app.Post(core.PathMFATOTPDisable, adaptor.HTTPHandler(mw(ac.DisableTOTPHandler())))
 		app.Post(core.PathMFABackupCodes, adaptor.HTTPHandler(mw(ac.RegenerateBackupCodesHandler())))
 		app.Get(core.PathMFAStatus, adaptor.HTTPHandler(mw(ac.MFAStatusHandler())))
+		app.Post(core.PathMFAVerify, adaptor.HTTPHandlerFunc(ac.MFAVerifyHandler()))
 	}
 }

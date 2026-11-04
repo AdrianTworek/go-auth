@@ -216,6 +216,53 @@ func Test_Integration_CanUseMFA_FalseWhenUnconfigured(t *testing.T) {
 	assert.False(t, ac.CanUseMFA())
 }
 
+// Test_NewAuthClient_RequiresMagicLinkMFARedirect covers the combination the spec did
+// not settle: magic-link completion ends in a redirect, so there is no body to carry a
+// challenge in. A consumer enabling both features without naming a page for it should
+// find out at startup, not when a user with a second factor is handed a cookieless
+// success page.
+func Test_NewAuthClient_RequiresMagicLinkMFARedirect(t *testing.T) {
+	// An unusable DSN, so reaching the database at all would surface a different error:
+	// this check must run before any resource is opened.
+	newClient := func(session *SessionConfig) error {
+		_, err := NewAuthClient(&AuthConfig{
+			Db:      &DatabaseConfig{Dsn: "postgres://nobody@127.0.0.1:1/nothing?sslmode=disable"},
+			BaseURL: "http://localhost",
+			Session: session,
+			MFA:     &MFAConfig{EncryptionKey: testHexKey},
+		})
+		return err
+	}
+
+	magicLink := func() *SessionConfig {
+		return &SessionConfig{
+			MagicLinkSuccessfulRedirectURL: "http://localhost/success",
+			MagicLinkFailedRedirectURL:     "http://localhost/failed",
+		}
+	}
+
+	t.Run("refused when magic-link is on and no MFA page is named", func(t *testing.T) {
+		err := newClient(magicLink())
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "MagicLinkMFARedirectURL")
+	})
+
+	t.Run("accepted once it is named", func(t *testing.T) {
+		session := magicLink()
+		session.MagicLinkMFARedirectURL = "http://localhost/mfa"
+		// Only the DSN should stop it now.
+		err := newClient(session)
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "MagicLinkMFARedirectURL")
+	})
+
+	t.Run("irrelevant when magic-link is not configured", func(t *testing.T) {
+		err := newClient(&SessionConfig{})
+		require.Error(t, err)
+		assert.NotContains(t, err.Error(), "MagicLinkMFARedirectURL")
+	})
+}
+
 // captureLogs swaps the default slog handler for the duration of a test and returns the
 // buffer it writes to.
 func captureLogs(t *testing.T, level slog.Level) *bytes.Buffer {

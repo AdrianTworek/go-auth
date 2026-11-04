@@ -71,5 +71,6 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 		r.POST(core.PathMFATOTPDisable, gin.WrapH(mw(ac.DisableTOTPHandler())))
 		r.POST(core.PathMFABackupCodes, gin.WrapH(mw(ac.RegenerateBackupCodesHandler())))
 		r.GET(core.PathMFAStatus, gin.WrapH(mw(ac.MFAStatusHandler())))
+		r.POST(core.PathMFAVerify, gin.WrapH(ac.MFAVerifyHandler()))
 	}
 }

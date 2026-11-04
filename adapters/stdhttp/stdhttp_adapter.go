@@ -70,5 +70,6 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 		mux.Handle("POST "+core.PathMFATOTPDisable, mw(ac.DisableTOTPHandler()))
 		mux.Handle("POST "+core.PathMFABackupCodes, mw(ac.RegenerateBackupCodesHandler()))
 		mux.Handle("GET "+core.PathMFAStatus, mw(ac.MFAStatusHandler()))
+		mux.Handle("POST "+core.PathMFAVerify, ac.MFAVerifyHandler())
 	}
 }

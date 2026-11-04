@@ -194,6 +194,24 @@ type SessionConfig struct {
 	//
 	// Default: ""
 	MagicLinkFailedRedirectURL string
+	// MagicLinkMFARedirectURL is where a magic-link sign-in is sent when the user has a
+	// second factor enabled. The challenge is appended as a "challenge" query parameter,
+	// and the page there is expected to collect a code and post it to /auth/mfa/verify.
+	//
+	// It is REQUIRED when AuthConfig.MFA is set and magic-link sign-in is configured,
+	// and client construction fails without it. Magic-link completion ends in a redirect
+	// rather than a response body, so there is nowhere else to put a challenge; the
+	// alternative of reusing MagicLinkSuccessfulRedirectURL would hand a user a page
+	// saying they are signed in when no session was issued, and nothing would say so.
+	//
+	// The challenge travels in a query string, which is more exposed than a body —
+	// referrer headers, browser history, server logs. That is accepted here because this
+	// flow already puts a stronger credential (the magic-link token itself) in a URL, and
+	// a challenge is single-use, expires in minutes, and is worthless without a valid
+	// code.
+	//
+	// Default: ""
+	MagicLinkMFARedirectURL string
 	// CookieSecure controls the Secure attribute on the session cookie. When nil it
 	// defaults to true; set it to a pointer to false only for local HTTP development.
 	//

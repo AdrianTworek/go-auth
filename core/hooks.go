@@ -58,6 +58,20 @@ const (
 	EventMFAVerificationFailed     AuthEventType = "mfa_verification_failed"
 	EventMFABackupCodeUsed         AuthEventType = "mfa_backup_code_used"
 	EventMFABackupCodesRegenerated AuthEventType = "mfa_backup_codes_regenerated"
+
+	// EventMFAChallengeIssued fires when a correct credential meets a user with a second
+	// factor enabled, before the challenge response is written, and carries the challenge
+	// on the event's MFA field.
+	//
+	// It exists because the paths that issue a challenge do not all have the same shape.
+	// Password login is an API call whose caller reads the response body, but the OAuth
+	// callback is a top-level browser navigation: without a hook here, a user with a
+	// second factor would land on a page of raw JSON. Redirect from this hook with
+	// HookRedirect, using MFAChallengeInfo.Flow to tell the cases apart.
+	//
+	// This is NOT a successful sign-in. No session exists yet, and EventAfterLogin fires
+	// only when the challenge has been exchanged for a valid code.
+	EventMFAChallengeIssued AuthEventType = "mfa_challenge_issued"
 )
 
 // AuditTarget* name the kind of thing an audit event acted on, so a handler can read
@@ -103,6 +117,25 @@ type RateLimitInfo struct {
 	// RetryAfter is how long until the caller may retry. Zero for the silent
 	// per-account cap on send endpoints.
 	RetryAfter time.Duration
+}
+
+// MFAChallengeFlow* name the sign-in path a second-factor challenge came from.
+const (
+	MFAChallengeFlowLogin     = "login"
+	MFAChallengeFlowMagicLink = "magic_link"
+	MFAChallengeFlowOAuth     = "oauth"
+)
+
+// MFAChallengeInfo describes a second-factor challenge, exposed to
+// EventMFAChallengeIssued hooks.
+type MFAChallengeInfo struct {
+	// Challenge is the opaque, single-use token the caller must exchange for a session
+	// by submitting a valid code to /auth/mfa/verify.
+	Challenge string
+	// Flow is the path that issued it: MFAChallengeFlowLogin, MFAChallengeFlowMagicLink
+	// or MFAChallengeFlowOAuth. It is what lets a handler redirect a browser-based flow
+	// while leaving an API call to read the response body.
+	Flow string
 }
 
 // AuditInfo describes an account-security action, exposed to handlers for the audit
@@ -152,6 +185,8 @@ type AuthEvent struct {
 	R *http.Request
 	// RateLimit is set only for EventRateLimited and describes the throttling event.
 	RateLimit *RateLimitInfo
+	// MFA is set only for EventMFAChallengeIssued and carries the challenge.
+	MFA *MFAChallengeInfo
 	// Audit is set only for the account-security audit events and describes what
 	// happened. See AuditInfo.
 	Audit *AuditInfo

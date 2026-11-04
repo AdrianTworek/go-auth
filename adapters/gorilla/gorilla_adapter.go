@@ -73,5 +73,6 @@ func InitAuth(ac *core.AuthClient, r *mux.Router) {
 		r.Handle(core.PathMFATOTPDisable, mw(ac.DisableTOTPHandler())).Methods(http.MethodPost)
 		r.Handle(core.PathMFABackupCodes, mw(ac.RegenerateBackupCodesHandler())).Methods(http.MethodPost)
 		r.Handle(core.PathMFAStatus, mw(ac.MFAStatusHandler())).Methods(http.MethodGet)
+		r.Handle(core.PathMFAVerify, ac.MFAVerifyHandler()).Methods(http.MethodPost)
 	}
 }

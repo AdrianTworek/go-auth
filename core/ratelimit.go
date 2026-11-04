@@ -289,10 +289,45 @@ func (ac *AuthClient) guardSend(w http.ResponseWriter, r *http.Request, flow, em
 	return true
 }
 
-// The second-factor verification guards live with the verify handler rather than here,
-// because that throttle has to be applied in two halves: the per-IP check runs before
-// any database work, and the per-account check only once the challenge has named its
-// owner. The rule itself is resolved above as rl.mfaVerify.
+// guardMFAVerifyIP and guardMFAVerifyAccount are the two halves of the second-factor
+// verification throttle. They are separate because the account is not known until the
+// challenge has been read: the per-IP half runs first, before any database work, and the
+// per-account half once the challenge names its owner.
+//
+// Both return a 429. There is no account to enumerate — reaching that endpoint at all
+// means the caller already holds a challenge, which is only issued after a correct
+// credential.
+func (ac *AuthClient) guardMFAVerifyIP(w http.ResponseWriter, r *http.Request) bool {
+	if !ac.rl.enabled {
+		return true
+	}
+	if info, ok := ac.check(r.Context(), "mfa_verify", "ip", ac.clientIP(r), ac.rl.mfaVerify.perIP); !ok {
+		return ac.blocked429(w, r, info)
+	}
+	return true
+}
+
+func (ac *AuthClient) guardMFAVerifyAccount(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if !ac.rl.enabled {
+		return true
+	}
+	if info, ok := ac.check(r.Context(), "mfa_verify", "account", userID, ac.rl.mfaVerify.perAccount); !ok {
+		return ac.blocked429(w, r, info)
+	}
+	return true
+}
+
+// resetMFAVerifyLimit clears the per-account verification counter after a completed
+// sign-in, so a user who fumbled a code or two is not left throttled. It mirrors what
+// resetLoginLimit does for the password step.
+func (ac *AuthClient) resetMFAVerifyLimit(ctx context.Context, userID string) {
+	if !ac.rl.enabled || !ac.rl.mfaVerify.perAccount.enabled() {
+		return
+	}
+	if err := ac.limiter.Reset(ctx, "mfa_verify:account:"+userID); err != nil {
+		slog.Error("failed to reset MFA verify rate limit", "error", err)
+	}
+}
 
 // guardSensitive enforces the rule for authenticated re-auth actions, keyed on client
 // IP and on the acting user. Both dimensions return a 429 (the caller is already
