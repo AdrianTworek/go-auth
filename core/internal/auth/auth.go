@@ -44,20 +44,31 @@ const (
 	EmailVerificationIntent
 	MagicLinkIntent
 	EmailChangeIntent
+	// TwoFactorChallengeIntent is the short-lived, single-use token issued when a
+	// correct password (or magic link, or OAuth sign-in) meets a user with a second
+	// factor enabled. It is exchanged for a session by submitting a valid code, so no
+	// session exists until both factors have passed.
+	//
+	// Appended at the end of the block deliberately: these constants are persisted by
+	// name rather than by number, so renumbering would not corrupt anything, but it
+	// would still be a gratuitous diff.
+	TwoFactorChallengeIntent
 )
 
 var verificationIntentToString = map[VerificationIntent]string{
-	PasswordResetIntent:     "password_reset",
-	EmailVerificationIntent: "email_verification",
-	MagicLinkIntent:         "magic_link",
-	EmailChangeIntent:       "email_change",
+	PasswordResetIntent:      "password_reset",
+	EmailVerificationIntent:  "email_verification",
+	MagicLinkIntent:          "magic_link",
+	EmailChangeIntent:        "email_change",
+	TwoFactorChallengeIntent: "two_factor_challenge",
 }
 
 var stringToVerificationIntent = map[string]VerificationIntent{
-	"password_reset":     PasswordResetIntent,
-	"email_verification": EmailVerificationIntent,
-	"magic_link":         MagicLinkIntent,
-	"email_change":       EmailChangeIntent,
+	"password_reset":       PasswordResetIntent,
+	"email_verification":   EmailVerificationIntent,
+	"magic_link":           MagicLinkIntent,
+	"email_change":         EmailChangeIntent,
+	"two_factor_challenge": TwoFactorChallengeIntent,
 }
 
 func (v VerificationIntent) String() string {

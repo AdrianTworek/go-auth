@@ -48,6 +48,20 @@ type Storage struct {
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
 		DeleteExpired(ctx context.Context) error
 	}
+	TOTP interface {
+		GetForUser(ctx context.Context, tx *sqlx.Tx, userID string) (*TOTPCredential, error)
+		Upsert(ctx context.Context, tx *sqlx.Tx, cred *TOTPCredential) error
+		Confirm(ctx context.Context, tx *sqlx.Tx, userID string, at time.Time) error
+		ClaimStep(ctx context.Context, tx *sqlx.Tx, userID string, step int64) (bool, error)
+		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
+		ExistsConfirmed(ctx context.Context) (bool, error)
+	}
+	BackupCode interface {
+		CreateMany(ctx context.Context, tx *sqlx.Tx, userID string, hashes []string) error
+		Consume(ctx context.Context, tx *sqlx.Tx, userID, hash string) (*BackupCode, error)
+		CountUnused(ctx context.Context, tx *sqlx.Tx, userID string) (int, error)
+		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
+	}
 	Transaction interface {
 		Begin() (*sqlx.Tx, error)
 		Commit(tx *sqlx.Tx) error
@@ -66,6 +80,8 @@ func NewStorage(db *sqlx.DB) *Storage {
 		Account:      &AccountStore{db: db},
 		Session:      &SessionStore{db: db},
 		Verification: &VerificationStore{db: db},
+		TOTP:         &TOTPStore{db: db},
+		BackupCode:   &BackupCodeStore{db: db},
 		Transaction:  &TransactionStore{db: db},
 		RateLimit:    &RateLimitStore{db: db},
 	}
