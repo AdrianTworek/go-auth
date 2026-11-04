@@ -36,6 +36,11 @@ var (
 	defaultRegisterPerIP     = Limit{Max: 10, Window: time.Hour}
 	defaultSensitivePerIP    = Limit{Max: 20, Window: time.Hour}
 	defaultSensitivePerActor = Limit{Max: 10, Window: time.Hour}
+	// Tighter than the login rule on purpose: a six-digit code has a far smaller space
+	// than a password. See RateLimitConfig.MFAVerify — this limit is what makes it safe
+	// for a failed code to leave the challenge usable.
+	defaultMFAVerifyPerIP      = Limit{Max: 20, Window: 15 * time.Minute}
+	defaultMFAVerifyPerAccount = Limit{Max: 10, Window: 15 * time.Minute}
 )
 
 // resolvedLimit is a Limit with defaults applied. A disabled limit has limit <= 0.
@@ -59,6 +64,7 @@ type resolvedRateLimit struct {
 	sendEmail resolvedRule
 	register  resolvedRule
 	sensitive resolvedRule
+	mfaVerify resolvedRule
 }
 
 func resolveLimit(c, def Limit) resolvedLimit {
@@ -101,6 +107,10 @@ func resolveRateLimitRules(cfg *RateLimitConfig) resolvedRateLimit {
 		sensitive: resolvedRule{
 			perIP:      resolveLimit(c.Sensitive.PerIP, defaultSensitivePerIP),
 			perAccount: resolveLimit(c.Sensitive.PerAccount, defaultSensitivePerActor),
+		},
+		mfaVerify: resolvedRule{
+			perIP:      resolveLimit(c.MFAVerify.PerIP, defaultMFAVerifyPerIP),
+			perAccount: resolveLimit(c.MFAVerify.PerAccount, defaultMFAVerifyPerAccount),
 		},
 	}
 }
@@ -278,6 +288,11 @@ func (ac *AuthClient) guardSend(w http.ResponseWriter, r *http.Request, flow, em
 	}
 	return true
 }
+
+// The second-factor verification guards live with the verify handler rather than here,
+// because that throttle has to be applied in two halves: the per-IP check runs before
+// any database work, and the per-account check only once the challenge has named its
+// owner. The rule itself is resolved above as rl.mfaVerify.
 
 // guardSensitive enforces the rule for authenticated re-auth actions, keyed on client
 // IP and on the acting user. Both dimensions return a 429 (the caller is already

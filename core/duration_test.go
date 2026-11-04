@@ -20,6 +20,7 @@ func TestResolveDurations(t *testing.T) {
 		assert.Equal(t, auth.DefaultEmailVerificationTokenDuration, d.emailVerification)
 		assert.Equal(t, auth.DefaultTokenDuration, d.passwordReset)
 		assert.Equal(t, auth.DefaultTokenDuration, d.magicLink)
+		assert.Equal(t, auth.DefaultTokenDuration, d.twoFactorChallenge)
 	})
 
 	// Asserted as literals rather than against the constants, so that changing a
@@ -32,6 +33,8 @@ func TestResolveDurations(t *testing.T) {
 			"higher-value and requested interactively, so a short window costs nothing")
 		assert.Equal(t, 5*time.Minute, d.magicLink)
 		assert.Equal(t, 5*time.Minute, d.emailChange)
+		assert.Equal(t, 5*time.Minute, d.twoFactorChallenge,
+			"held by someone standing at a login form, so it bounds how long an abandoned half-finished sign-in stays usable")
 	})
 
 	t.Run("defaults the refresh threshold to half the configured session duration", func(t *testing.T) {
@@ -47,11 +50,13 @@ func TestResolveDurations(t *testing.T) {
 
 	t.Run("overrides only the token durations that are set", func(t *testing.T) {
 		d := resolveDurations(nil, &TokenConfig{
-			EmailVerification: time.Hour,
-			MagicLink:         10 * time.Minute,
+			EmailVerification:  time.Hour,
+			MagicLink:          10 * time.Minute,
+			TwoFactorChallenge: 2 * time.Minute,
 		})
 		assert.Equal(t, time.Hour, d.emailVerification)
 		assert.Equal(t, 10*time.Minute, d.magicLink)
+		assert.Equal(t, 2*time.Minute, d.twoFactorChallenge)
 		assert.Equal(t, auth.DefaultTokenDuration, d.passwordReset) // left unset -> default
 	})
 

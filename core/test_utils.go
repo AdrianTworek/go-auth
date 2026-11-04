@@ -127,6 +127,7 @@ func (a *TestApp) Router() *chi.Mux {
 		RateLimit:     rl,
 		TrustedProxy:  a.config.TrustedProxy,
 		Password:      a.config.Password,
+		MFA:           a.config.MFA,
 	})
 	if err != nil {
 		return nil
