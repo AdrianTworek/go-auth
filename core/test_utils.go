@@ -169,6 +169,9 @@ func (a *TestApp) Router() *chi.Mux {
 	r.With(mw).Delete(PathSessions, ac.RevokeOtherSessionsHandler())
 	r.With(mw).Delete(PathSession, ac.RevokeSessionHandler())
 
+	r.With(mw).Get(PathAccounts, ac.ListAccountsHandler())
+	r.With(mw).Delete(PathAccount, ac.UnlinkAccountHandler())
+
 	return r
 }
 

@@ -31,22 +31,14 @@ type User struct {
 	EmailVerified bool             `json:"emailVerified" db:"email_verified"`
 	AvatarURL     *auth.NullString `json:"avatarURL" db:"avatar_url"`
 	AvatarSource  *auth.NullString `json:"avatarSource" db:"avatar_source"`
-	OAuthProvider *auth.NullString `json:"oauthProvider" db:"oauth_provider"`
-	OAuthID       *auth.NullString `json:"oauthID" db:"oauth_id"`
 }
 
-func NewUser(email string, emailVerified bool, avatarURL, avatarSource, oauthProvider, oauthID *auth.NullString) *User {
+func NewUser(email string, emailVerified bool, avatarURL, avatarSource *auth.NullString) *User {
 	if avatarURL == nil {
 		avatarURL = auth.NewNullString("")
 	}
 	if avatarSource == nil {
 		avatarSource = auth.NewNullString("")
-	}
-	if oauthProvider == nil {
-		oauthProvider = auth.NewNullString("")
-	}
-	if oauthID == nil {
-		oauthID = auth.NewNullString("")
 	}
 
 	return &User{
@@ -54,8 +46,6 @@ func NewUser(email string, emailVerified bool, avatarURL, avatarSource, oauthPro
 		EmailVerified: emailVerified,
 		AvatarURL:     avatarURL,
 		AvatarSource:  avatarSource,
-		OAuthProvider: oauthProvider,
-		OAuthID:       oauthID,
 	}
 }
 
@@ -63,10 +53,30 @@ type UserStore struct {
 	db *sqlx.DB
 }
 
+// LockForUpdate takes a row lock on the user for the rest of the transaction. Callers
+// that decide something by counting a user's related rows need it: without the lock two
+// concurrent unlinks each see one sign-in method remaining, both proceed, and the user
+// is left with none.
+func (s *UserStore) LockForUpdate(ctx context.Context, tx *sqlx.Tx, id string) error {
+	query := `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	var locked int
+	if err := tx.GetContext(ctx, &locked, query, id); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+	return nil
+}
+
 func (s *UserStore) Create(ctx context.Context, tx *sqlx.Tx, user *User) error {
 	query := `
-    INSERT INTO users (email, password, email_verified, avatar_url, avatar_source, oauth_provider, oauth_id)
-    VALUES (:email, :password, :email_verified, :avatar_url, :avatar_source, :oauth_provider, :oauth_id)
+    INSERT INTO users (email, password, email_verified, avatar_url, avatar_source)
+    VALUES (:email, :password, :email_verified, :avatar_url, :avatar_source)
   `
 
 	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
@@ -146,9 +156,7 @@ func (s *UserStore) Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User,
 		password = :password,
 		email_verified = :email_verified,
 		avatar_url = :avatar_url,
-		avatar_source = :avatar_source,
-		oauth_provider = :oauth_provider,
-		oauth_id = :oauth_id
+		avatar_source = :avatar_source
 	WHERE id = :id
 	RETURNING *
 	`

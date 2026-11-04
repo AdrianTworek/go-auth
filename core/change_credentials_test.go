@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
 )
 
@@ -221,25 +222,50 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 	app.mailer.AssertExpectations(t)
 }
 
-func Test_Integration_ChangeEmailOAuthLinkedBlocked(t *testing.T) {
+// Changing an address used to be refused outright for a provider-linked account,
+// because the link was keyed on the email and the change would orphan it. Now that a
+// link is identified by the provider's own account id, the change is safe and the link
+// has to survive it.
+func Test_Integration_ChangeEmailKeepsProviderLinks(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
+
+	oldEmail := TestUserData[DefaultUser].Email
+	newEmail := "relinked@example.com"
+	app.mailer.On("SendEmailChangeEmail", newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeNotification", oldEmail, newEmail, mock.Anything).Return(nil)
+	app.mailer.On("SendEmailChangeCompletedNotification", oldEmail, newEmail).Return(nil)
 
 	helper := newTestHelper(t, app)
 	cookie := loginCookie(t, helper, DefaultUser)
 
-	// Link an OAuth provider to the account.
-	_, err := db.ExecContext(t.Context(),
-		`UPDATE users SET oauth_provider = 'google', oauth_id = 'oauth-123' WHERE email = $1`,
-		TestUserData[DefaultUser].Email)
+	uid := userID(t, db, oldEmail)
+	account, err := app.storage.Account.Create(t.Context(), nil, &store.Account{
+		UserID:            uid,
+		Provider:          "google",
+		ProviderAccountID: "oauth-123",
+		Email:             auth.NewNullString(oldEmail),
+	})
 	require.NoError(t, err)
 
 	rr := doJSON(t, app, http.MethodPost, PathChangeEmail, cookie, map[string]string{
-		"newEmail":        "brand-new@example.com",
+		"newEmail":        newEmail,
 		"currentPassword": TestUserData[DefaultUser].Password,
 	})
-	assert.Equal(t, http.StatusConflict, rr.Code)
-	assert.Contains(t, rr.Body.String(), "google")
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	token := mailToken(t, app, "SendEmailChangeEmail")
+	confirm := doGet(t, app, strings.Replace(PathConfirmEmailChange, "{token}", token, 1), nil)
+	require.Equal(t, http.StatusOK, confirm.Code)
+
+	changed, err := app.storage.User.GetByEmail(t.Context(), nil, newEmail)
+	require.NoError(t, err)
+	assert.Equal(t, uid, changed.ID)
+
+	links, err := app.storage.Account.ListForUser(t.Context(), uid)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "the provider link must survive the address change")
+	assert.Equal(t, account.ID, links[0].ID)
 }
 
 func Test_Integration_ChangeEmailAlreadyTaken(t *testing.T) {

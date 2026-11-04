@@ -19,9 +19,17 @@ var (
 type Storage struct {
 	User interface {
 		Create(ctx context.Context, tx *sqlx.Tx, user *User) error
+		LockForUpdate(ctx context.Context, tx *sqlx.Tx, id string) error
 		GetByID(ctx context.Context, tx *sqlx.Tx, id string) (*User, error)
 		GetByEmail(ctx context.Context, tx *sqlx.Tx, email string) (*User, error)
 		Update(ctx context.Context, tx *sqlx.Tx, user *User) (*User, error)
+	}
+	Account interface {
+		Create(ctx context.Context, tx *sqlx.Tx, account *Account) (*Account, error)
+		GetByProviderAccount(ctx context.Context, tx *sqlx.Tx, provider, providerAccountID string) (*Account, error)
+		ListForUser(ctx context.Context, userID string) ([]*Account, error)
+		CountForUser(ctx context.Context, tx *sqlx.Tx, userID string) (int, error)
+		DeleteByIDForUser(ctx context.Context, tx *sqlx.Tx, userID, id string) (*Account, error)
 	}
 	Session interface {
 		Create(ctx context.Context, tx *sqlx.Tx, session *Session) (token string, err error)
@@ -55,6 +63,7 @@ type Storage struct {
 func NewStorage(db *sqlx.DB) *Storage {
 	return &Storage{
 		User:         &UserStore{db: db},
+		Account:      &AccountStore{db: db},
 		Session:      &SessionStore{db: db},
 		Verification: &VerificationStore{db: db},
 		Transaction:  &TransactionStore{db: db},

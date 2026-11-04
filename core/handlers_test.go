@@ -703,7 +703,7 @@ func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
-	u := store.NewUser("oauth_only@example.com", true, nil, nil, nil, nil)
+	u := store.NewUser("oauth_only@example.com", true, nil, nil)
 	err := app.storage.User.Create(t.Context(), nil, u)
 	assert.NoError(t, err)
 

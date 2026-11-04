@@ -62,4 +62,7 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 	app.Get(core.PathSessions, adaptor.HTTPHandler(mw(ac.ListSessionsHandler())))
 	app.Delete(core.PathSessions, adaptor.HTTPHandler(mw(ac.RevokeOtherSessionsHandler())))
 	app.Delete(core.ColonParamPattern(core.PathSession), adaptor.HTTPHandler(mw(ac.RevokeSessionHandler())))
+
+	app.Get(core.PathAccounts, adaptor.HTTPHandler(mw(ac.ListAccountsHandler())))
+	app.Delete(core.ColonParamPattern(core.PathAccount), adaptor.HTTPHandler(mw(ac.UnlinkAccountHandler())))
 }

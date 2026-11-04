@@ -60,4 +60,7 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 	mux.Handle("GET "+core.PathSessions, mw(ac.ListSessionsHandler()))
 	mux.Handle("DELETE "+core.PathSessions, mw(ac.RevokeOtherSessionsHandler()))
 	mux.Handle("DELETE "+core.PathSession, mw(ac.RevokeSessionHandler()))
+
+	mux.Handle("GET "+core.PathAccounts, mw(ac.ListAccountsHandler()))
+	mux.Handle("DELETE "+core.PathAccount, mw(ac.UnlinkAccountHandler()))
 }
