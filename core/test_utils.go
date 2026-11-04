@@ -173,6 +173,16 @@ func (a *TestApp) Router() *chi.Mux {
 	r.With(mw).Get(PathAccounts, ac.ListAccountsHandler())
 	r.With(mw).Delete(PathAccount, ac.UnlinkAccountHandler())
 
+	// Gated exactly as the adapters gate it, so the "routes are absent until the
+	// capability is configured" guarantee is what the tests actually exercise.
+	if ac.CanUseMFA() {
+		r.With(mw).Post(PathMFATOTPSetup, ac.BeginTOTPEnrolmentHandler())
+		r.With(mw).Post(PathMFATOTPConfirm, ac.TOTPEnrolmentConfirmHandler())
+		r.With(mw).Post(PathMFATOTPDisable, ac.DisableTOTPHandler())
+		r.With(mw).Post(PathMFABackupCodes, ac.RegenerateBackupCodesHandler())
+		r.With(mw).Get(PathMFAStatus, ac.MFAStatusHandler())
+	}
+
 	return r
 }
 

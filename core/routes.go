@@ -29,6 +29,22 @@ const (
 	PathSession            = "/auth/sessions/{id}"
 	PathAccounts           = "/auth/accounts"
 	PathAccount            = "/auth/accounts/{id}"
+
+	// Two-factor routes. All static segments: there is no path parameter anywhere in
+	// the feature, so no adapter needs a ParamExtractor for these and there is no
+	// static-vs-param conflict for gin/httprouter to panic on.
+	//
+	// Explicit action segments rather than REST verbs on a resource, which also keeps
+	// every re-authenticating request a POST with a body — the shape /auth/change-password
+	// and /auth/change-email already use.
+	PathMFATOTPSetup   = "/auth/mfa/totp/setup"
+	PathMFATOTPConfirm = "/auth/mfa/totp/confirm"
+	PathMFATOTPDisable = "/auth/mfa/totp/disable"
+	PathMFAStatus      = "/auth/mfa/status"
+	PathMFABackupCodes = "/auth/mfa/backup-codes"
+	// PathMFAVerify is public: the caller holds a challenge rather than a session, so it
+	// must not be mounted behind AuthMiddleware.
+	PathMFAVerify = "/auth/mfa/verify"
 )
 
 // ColonParamPattern converts a canonical "{name}" path pattern to the ":name" form

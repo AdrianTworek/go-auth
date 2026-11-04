@@ -67,4 +67,12 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 
 	e.GET(core.PathAccounts, echo.WrapHandler(mw(ac.ListAccountsHandler())))
 	e.DELETE(core.ColonParamPattern(core.PathAccount), echo.WrapHandler(mw(ac.UnlinkAccountHandler())))
+
+	if ac.CanUseMFA() {
+		e.POST(core.PathMFATOTPSetup, echo.WrapHandler(mw(ac.BeginTOTPEnrolmentHandler())))
+		e.POST(core.PathMFATOTPConfirm, echo.WrapHandler(mw(ac.TOTPEnrolmentConfirmHandler())))
+		e.POST(core.PathMFATOTPDisable, echo.WrapHandler(mw(ac.DisableTOTPHandler())))
+		e.POST(core.PathMFABackupCodes, echo.WrapHandler(mw(ac.RegenerateBackupCodesHandler())))
+		e.GET(core.PathMFAStatus, echo.WrapHandler(mw(ac.MFAStatusHandler())))
+	}
 }

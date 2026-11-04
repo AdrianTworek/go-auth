@@ -45,6 +45,19 @@ const (
 	EventLoginFailed             AuthEventType = "login_failed"
 	EventAccountLinked           AuthEventType = "account_linked"
 	EventAccountUnlinked         AuthEventType = "account_unlinked"
+
+	// The two-factor events. Each carries AuditInfo with TargetType AuditTargetMFA and
+	// the acting user's id as TargetID.
+	//
+	// EventMFABackupCodeUsed is the one worth alerting on rather than merely recording:
+	// a user spending a recovery code usually means they have lost a device, which an
+	// operator may want to notice while it is still happening.
+	EventMFAEnabled                AuthEventType = "mfa_enabled"
+	EventMFADisabled               AuthEventType = "mfa_disabled"
+	EventMFAVerified               AuthEventType = "mfa_verified"
+	EventMFAVerificationFailed     AuthEventType = "mfa_verification_failed"
+	EventMFABackupCodeUsed         AuthEventType = "mfa_backup_code_used"
+	EventMFABackupCodesRegenerated AuthEventType = "mfa_backup_codes_regenerated"
 )
 
 // AuditTarget* name the kind of thing an audit event acted on, so a handler can read
@@ -54,6 +67,7 @@ const (
 	AuditTargetSession = "session"
 	AuditTargetEmail   = "email"
 	AuditTargetAccount = "account"
+	AuditTargetMFA     = "mfa"
 )
 
 // LoginFailure* are the reasons carried by EventLoginFailed.
@@ -61,6 +75,18 @@ const (
 	LoginFailureUnknownAccount  = "unknown_account"
 	LoginFailureBadPassword     = "bad_password"
 	LoginFailureUnverifiedEmail = "unverified_email"
+)
+
+// MFAFailure* are the reasons carried by EventMFAVerificationFailed. As with
+// EventLoginFailed, the HTTP response stays uniform across all of them — the distinction
+// is for the consumer's own records, in-process. A handler should therefore do a similar
+// amount of work whatever the reason, or it reintroduces the timing signal the uniform
+// response exists to remove.
+const (
+	MFAFailureInvalidCode       = "invalid_code"
+	MFAFailureReplayedCode      = "replayed_code"
+	MFAFailureInvalidBackupCode = "invalid_backup_code"
+	MFAFailureInvalidChallenge  = "invalid_challenge"
 )
 
 // RateLimitInfo describes a throttling event, exposed to EventRateLimited hooks.
