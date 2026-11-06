@@ -64,4 +64,13 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 
 	r.GET(core.PathAccounts, gin.WrapH(mw(ac.ListAccountsHandler())))
 	r.DELETE(core.ColonParamPattern(core.PathAccount), gin.WrapH(mw(ac.UnlinkAccountHandler())))
+
+	if ac.CanUseMFA() {
+		r.POST(core.PathMFATOTPSetup, gin.WrapH(mw(ac.BeginTOTPEnrolmentHandler())))
+		r.POST(core.PathMFATOTPConfirm, gin.WrapH(mw(ac.TOTPEnrolmentConfirmHandler())))
+		r.POST(core.PathMFATOTPDisable, gin.WrapH(mw(ac.DisableTOTPHandler())))
+		r.POST(core.PathMFABackupCodes, gin.WrapH(mw(ac.RegenerateBackupCodesHandler())))
+		r.GET(core.PathMFAStatus, gin.WrapH(mw(ac.MFAStatusHandler())))
+		r.POST(core.PathMFAVerify, gin.WrapH(ac.MFAVerifyHandler()))
+	}
 }

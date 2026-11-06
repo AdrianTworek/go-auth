@@ -48,6 +48,93 @@ type AuthConfig struct {
 	//
 	// Default: nil (use RemoteAddr)
 	TrustedProxy *TrustedProxyConfig
+	// MFA enables two-factor authentication with an authenticator app (TOTP) and
+	// single-use backup codes.
+	//
+	// When nil the capability does not exist: login behaves exactly as it does without
+	// it, no encryption key is required, and the management routes are not mounted at
+	// all. Note this is the opposite of RateLimit, where nil means ON. The difference is
+	// deliberate — rate limiting needs no configuration and changes nothing for a
+	// well-behaved caller, whereas this requires a secret you must generate and keep,
+	// and it changes how every enrolled user signs in.
+	//
+	// There are two independent opt-ins, and a second factor is only ever demanded when
+	// both are true: you enable the capability here, and the individual user chooses to
+	// enrol. Enabling it for your service changes nothing visible until users start
+	// enrolling — which reads as a bug to whoever tests it first, and is the intended
+	// behaviour.
+	//
+	// Default: nil (off)
+	MFA *MFAConfig
+}
+
+// MFAConfig configures two-factor authentication. Setting it at all enables the
+// capability, so the only genuinely required field is EncryptionKey.
+//
+// Turning the feature back off downgrades anyone already enrolled, and the library
+// cannot prevent that: verifying a code needs the encryption key, and removing this
+// config removes the key. At construction the library logs loudly if enrolments exist
+// while the feature is disabled. It is not an error — rolling back deliberately is
+// legitimate, and refusing to start would be worse than the downgrade — but it is not
+// allowed to be invisible either.
+type MFAConfig struct {
+	// EncryptionKey encrypts TOTP secrets at rest with AES-256-GCM. Required.
+	//
+	// Unlike a password, a TOTP secret has to be recoverable in order to verify a code,
+	// so hashing is not an option; encryption is what stops a leaked database dump from
+	// handing over every user's second factor.
+	//
+	// Supply either 64 hex characters — generate one with `openssl rand -hex 32` — or
+	// exactly 32 raw bytes. Anything else fails at construction rather than silently
+	// storing secrets in the clear.
+	//
+	// This is a real operational obligation: a secret you must generate, store and never
+	// lose. Losing it means every enrolled user has to re-enrol, so keep it wherever you
+	// keep your other secrets, and rotate it only with a plan — the library does not
+	// re-encrypt existing secrets for you.
+	EncryptionKey string
+	// Issuer is the service name shown in the user's authenticator app, which is how
+	// they tell your code apart from the dozen others in the list.
+	//
+	// Default: the host from BaseURL, or "go-auth" if that is unset or unparseable
+	Issuer string
+	// Period is how long each generated code is valid for.
+	//
+	// Changing this away from 30 seconds breaks compatibility with every mainstream
+	// authenticator app, which implement the RFC's default and nothing else. It is
+	// configurable for completeness, not because you should reach for it.
+	//
+	// Default: 30 seconds
+	Period time.Duration
+	// Digits is the length of a generated code. Like Period, moving away from the
+	// default breaks real authenticator apps.
+	//
+	// Default: 6
+	Digits int
+	// SkewSteps accepts codes from this many time steps either side of the current one,
+	// because phone clocks drift and a user who is told their correct code is wrong has
+	// no way to fix it.
+	//
+	// It is a direct trade of usability against exposure: each extra step is another
+	// Period-long window in which a given code is live. Zero uses the default; a
+	// negative value accepts only the current step.
+	//
+	// Default: 1
+	SkewSteps int
+	// BackupCodeCount is how many single-use recovery codes are issued when a user
+	// confirms enrolment, and again whenever they regenerate.
+	//
+	// Default: 10
+	BackupCodeCount int
+	// OAuthSatisfiesSecondFactor exempts OAuth sign-in from the second factor, for an
+	// operator who considers the provider's own second factor sufficient.
+	//
+	// It defaults to false, meaning an OAuth sign-in is challenged like any other: the
+	// safe behaviour is the default, and the exemption is a deliberate statement. Every
+	// other path that creates a session honours the factor unconditionally.
+	//
+	// Default: false (challenge OAuth sign-ins)
+	OAuthSatisfiesSecondFactor bool
 }
 
 type OAuthConfig struct {
@@ -107,6 +194,24 @@ type SessionConfig struct {
 	//
 	// Default: ""
 	MagicLinkFailedRedirectURL string
+	// MagicLinkMFARedirectURL is where a magic-link sign-in is sent when the user has a
+	// second factor enabled. The challenge is appended as a "challenge" query parameter,
+	// and the page there is expected to collect a code and post it to /auth/mfa/verify.
+	//
+	// It is REQUIRED when AuthConfig.MFA is set and magic-link sign-in is configured,
+	// and client construction fails without it. Magic-link completion ends in a redirect
+	// rather than a response body, so there is nowhere else to put a challenge; the
+	// alternative of reusing MagicLinkSuccessfulRedirectURL would hand a user a page
+	// saying they are signed in when no session was issued, and nothing would say so.
+	//
+	// The challenge travels in a query string, which is more exposed than a body —
+	// referrer headers, browser history, server logs. That is accepted here because this
+	// flow already puts a stronger credential (the magic-link token itself) in a URL, and
+	// a challenge is single-use, expires in minutes, and is worthless without a valid
+	// code.
+	//
+	// Default: ""
+	MagicLinkMFARedirectURL string
 	// CookieSecure controls the Secure attribute on the session cookie. When nil it
 	// defaults to true; set it to a pointer to false only for local HTTP development.
 	//
@@ -161,6 +266,16 @@ type TokenConfig struct {
 	//
 	// Default: 5 minutes
 	EmailChange time.Duration
+	// TwoFactorChallenge is the lifetime of the challenge issued when a correct password
+	// (or magic link, or OAuth sign-in) meets a user with a second factor enabled. It is
+	// exchanged for a session by submitting a valid code.
+	//
+	// Unlike the others this one is never emailed — it is held by someone standing at a
+	// login form — so it belongs in the short family: it bounds how long an abandoned
+	// half-finished sign-in stays usable.
+	//
+	// Default: 5 minutes
+	TwoFactorChallenge time.Duration
 }
 
 // RateLimitBackend selects a built-in counter store for rate limiting.
@@ -220,6 +335,25 @@ type RateLimitConfig struct {
 	//
 	// Default: 20 / 1h per IP, 10 / 1h per user
 	Sensitive Rule
+	// MFAVerify throttles second-factor code submissions, keyed on client IP and on the
+	// challenged account.
+	//
+	// It is a tighter rule than Login rather than a reuse of it, because a six-digit code
+	// has a far smaller space than a password: at the default of 10 attempts per 15
+	// minutes, guessing one is out of reach by orders of magnitude, while a user who
+	// fumbles a code or two is unaffected.
+	//
+	// Backup-code attempts count against the same budget. That is deliberate — both are
+	// attempts at the same factor, so counting them separately would double the
+	// allowance.
+	//
+	// This limit is load-bearing beyond its own endpoint: a failed code deliberately does
+	// NOT consume the challenge, so that one mistyped digit doesn't send the user back to
+	// re-enter their password. That is only safe because the attempts are bounded here.
+	// Loosening this rule means revisiting that decision with it.
+	//
+	// Default: 20 / 15m per IP, 10 / 15m per account
+	MFAVerify Rule
 }
 
 // Rule is a per-flow limit with two independent dimensions. A zero-valued Limit uses

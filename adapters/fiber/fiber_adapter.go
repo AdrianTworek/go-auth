@@ -65,4 +65,13 @@ func InitAuth(ac *core.AuthClient, app *fiber.App) {
 
 	app.Get(core.PathAccounts, adaptor.HTTPHandler(mw(ac.ListAccountsHandler())))
 	app.Delete(core.ColonParamPattern(core.PathAccount), adaptor.HTTPHandler(mw(ac.UnlinkAccountHandler())))
+
+	if ac.CanUseMFA() {
+		app.Post(core.PathMFATOTPSetup, adaptor.HTTPHandler(mw(ac.BeginTOTPEnrolmentHandler())))
+		app.Post(core.PathMFATOTPConfirm, adaptor.HTTPHandler(mw(ac.TOTPEnrolmentConfirmHandler())))
+		app.Post(core.PathMFATOTPDisable, adaptor.HTTPHandler(mw(ac.DisableTOTPHandler())))
+		app.Post(core.PathMFABackupCodes, adaptor.HTTPHandler(mw(ac.RegenerateBackupCodesHandler())))
+		app.Get(core.PathMFAStatus, adaptor.HTTPHandler(mw(ac.MFAStatusHandler())))
+		app.Post(core.PathMFAVerify, adaptor.HTTPHandlerFunc(ac.MFAVerifyHandler()))
+	}
 }

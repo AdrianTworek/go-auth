@@ -36,6 +36,11 @@ var (
 	defaultRegisterPerIP     = Limit{Max: 10, Window: time.Hour}
 	defaultSensitivePerIP    = Limit{Max: 20, Window: time.Hour}
 	defaultSensitivePerActor = Limit{Max: 10, Window: time.Hour}
+	// Tighter than the login rule on purpose: a six-digit code has a far smaller space
+	// than a password. See RateLimitConfig.MFAVerify — this limit is what makes it safe
+	// for a failed code to leave the challenge usable.
+	defaultMFAVerifyPerIP      = Limit{Max: 20, Window: 15 * time.Minute}
+	defaultMFAVerifyPerAccount = Limit{Max: 10, Window: 15 * time.Minute}
 )
 
 // resolvedLimit is a Limit with defaults applied. A disabled limit has limit <= 0.
@@ -59,6 +64,7 @@ type resolvedRateLimit struct {
 	sendEmail resolvedRule
 	register  resolvedRule
 	sensitive resolvedRule
+	mfaVerify resolvedRule
 }
 
 func resolveLimit(c, def Limit) resolvedLimit {
@@ -101,6 +107,10 @@ func resolveRateLimitRules(cfg *RateLimitConfig) resolvedRateLimit {
 		sensitive: resolvedRule{
 			perIP:      resolveLimit(c.Sensitive.PerIP, defaultSensitivePerIP),
 			perAccount: resolveLimit(c.Sensitive.PerAccount, defaultSensitivePerActor),
+		},
+		mfaVerify: resolvedRule{
+			perIP:      resolveLimit(c.MFAVerify.PerIP, defaultMFAVerifyPerIP),
+			perAccount: resolveLimit(c.MFAVerify.PerAccount, defaultMFAVerifyPerAccount),
 		},
 	}
 }
@@ -277,6 +287,46 @@ func (ac *AuthClient) guardSend(w http.ResponseWriter, r *http.Request, flow, em
 		return ac.blockedSilent(w, r, info, genericMsg)
 	}
 	return true
+}
+
+// guardMFAVerifyIP and guardMFAVerifyAccount are the two halves of the second-factor
+// verification throttle. They are separate because the account is not known until the
+// challenge has been read: the per-IP half runs first, before any database work, and the
+// per-account half once the challenge names its owner.
+//
+// Both return a 429. There is no account to enumerate — reaching that endpoint at all
+// means the caller already holds a challenge, which is only issued after a correct
+// credential.
+func (ac *AuthClient) guardMFAVerifyIP(w http.ResponseWriter, r *http.Request) bool {
+	if !ac.rl.enabled {
+		return true
+	}
+	if info, ok := ac.check(r.Context(), "mfa_verify", "ip", ac.clientIP(r), ac.rl.mfaVerify.perIP); !ok {
+		return ac.blocked429(w, r, info)
+	}
+	return true
+}
+
+func (ac *AuthClient) guardMFAVerifyAccount(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if !ac.rl.enabled {
+		return true
+	}
+	if info, ok := ac.check(r.Context(), "mfa_verify", "account", userID, ac.rl.mfaVerify.perAccount); !ok {
+		return ac.blocked429(w, r, info)
+	}
+	return true
+}
+
+// resetMFAVerifyLimit clears the per-account verification counter after a completed
+// sign-in, so a user who fumbled a code or two is not left throttled. It mirrors what
+// resetLoginLimit does for the password step.
+func (ac *AuthClient) resetMFAVerifyLimit(ctx context.Context, userID string) {
+	if !ac.rl.enabled || !ac.rl.mfaVerify.perAccount.enabled() {
+		return
+	}
+	if err := ac.limiter.Reset(ctx, "mfa_verify:account:"+userID); err != nil {
+		slog.Error("failed to reset MFA verify rate limit", "error", err)
+	}
 }
 
 // guardSensitive enforces the rule for authenticated re-auth actions, keyed on client

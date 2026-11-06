@@ -78,6 +78,11 @@ type TestApp struct {
 	config  *AuthConfig
 	mailer  *MockMailer
 	storage *store.Storage
+	// nowFn, when set, replaces the clock on every client Router() builds. Router()
+	// constructs a fresh AuthClient per request, so a test cannot reach in and swap the
+	// field itself; this threads one shared clock through all of them, which is what
+	// makes TOTP skew, replay and challenge expiry testable without sleeping.
+	nowFn func() time.Time
 }
 
 func NewTestApp(env *Env, c *AuthConfig) (*TestApp, error) {
@@ -127,9 +132,13 @@ func (a *TestApp) Router() *chi.Mux {
 		RateLimit:     rl,
 		TrustedProxy:  a.config.TrustedProxy,
 		Password:      a.config.Password,
+		MFA:           a.config.MFA,
 	})
 	if err != nil {
 		return nil
+	}
+	if a.nowFn != nil {
+		ac.now = a.nowFn
 	}
 
 	// Mirrors the chi adapter, but inlined: the core package's tests can't import an
@@ -171,6 +180,18 @@ func (a *TestApp) Router() *chi.Mux {
 
 	r.With(mw).Get(PathAccounts, ac.ListAccountsHandler())
 	r.With(mw).Delete(PathAccount, ac.UnlinkAccountHandler())
+
+	// Gated exactly as the adapters gate it, so the "routes are absent until the
+	// capability is configured" guarantee is what the tests actually exercise.
+	if ac.CanUseMFA() {
+		r.With(mw).Post(PathMFATOTPSetup, ac.BeginTOTPEnrolmentHandler())
+		r.With(mw).Post(PathMFATOTPConfirm, ac.TOTPEnrolmentConfirmHandler())
+		r.With(mw).Post(PathMFATOTPDisable, ac.DisableTOTPHandler())
+		r.With(mw).Post(PathMFABackupCodes, ac.RegenerateBackupCodesHandler())
+		r.With(mw).Get(PathMFAStatus, ac.MFAStatusHandler())
+		// Public: the caller holds a challenge, not a session.
+		r.Post(PathMFAVerify, ac.MFAVerifyHandler())
+	}
 
 	return r
 }

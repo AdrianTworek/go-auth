@@ -26,17 +26,23 @@ type AuthClient struct {
 	password     passwordPolicy
 	rl           resolvedRateLimit
 	trustedProxy *TrustedProxyConfig
+	mfa          resolvedMFA
+	// now is the clock every time-dependent read goes through. It is swapped in tests
+	// so that code skew, challenge expiry and replay can be exercised without sleeping,
+	// following the same unexported-field pattern as memoryRateLimiter.
+	now func() time.Time
 }
 
 // resolvedDurations holds the session and token lifetimes for an AuthClient with
 // all defaults already applied, so handlers and middleware never read raw config.
 type resolvedDurations struct {
-	session           time.Duration
-	refreshThreshold  time.Duration
-	emailVerification time.Duration
-	passwordReset     time.Duration
-	magicLink         time.Duration
-	emailChange       time.Duration
+	session            time.Duration
+	refreshThreshold   time.Duration
+	emailVerification  time.Duration
+	passwordReset      time.Duration
+	magicLink          time.Duration
+	emailChange        time.Duration
+	twoFactorChallenge time.Duration
 }
 
 // Checks if mailer is configured and magic link redirect urls are also provided
@@ -108,11 +114,12 @@ func resolveCookieOptions(s *SessionConfig) auth.CookieOptions {
 // defaults to half the (resolved) session duration.
 func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
 	d := resolvedDurations{
-		session:           auth.DefaultSessionDuration,
-		emailVerification: auth.DefaultEmailVerificationTokenDuration,
-		passwordReset:     auth.DefaultTokenDuration,
-		magicLink:         auth.DefaultTokenDuration,
-		emailChange:       auth.DefaultTokenDuration,
+		session:            auth.DefaultSessionDuration,
+		emailVerification:  auth.DefaultEmailVerificationTokenDuration,
+		passwordReset:      auth.DefaultTokenDuration,
+		magicLink:          auth.DefaultTokenDuration,
+		emailChange:        auth.DefaultTokenDuration,
+		twoFactorChallenge: auth.DefaultTokenDuration,
 	}
 
 	if s != nil && s.Duration > 0 {
@@ -136,6 +143,9 @@ func resolveDurations(s *SessionConfig, t *TokenConfig) resolvedDurations {
 		if t.EmailChange > 0 {
 			d.emailChange = t.EmailChange
 		}
+		if t.TwoFactorChallenge > 0 {
+			d.twoFactorChallenge = t.TwoFactorChallenge
+		}
 	}
 
 	return d
@@ -151,6 +161,28 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	// when OAuth is enabled. Validate before opening any resources.
 	if config.OAuth != nil && len(config.OAuth.Providers) > 0 && len(config.SessionSecret) < 32 {
 		return nil, fmt.Errorf("SessionSecret must be at least 32 bytes when OAuth is enabled")
+	}
+
+	// Reject a missing or malformed encryption key before opening any resources, for
+	// the same reason as the SessionSecret check above: a misconfiguration that silently
+	// stores second-factor secrets in the clear is discovered far too late.
+	mfa, err := resolveMFA(config.MFA, config.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Magic-link completion ends in a redirect, so there is no response body to carry a
+	// challenge in. A consumer who has enabled both features and not thought about that
+	// corner should find out at startup rather than when a user with a second factor is
+	// handed a cookieless success page.
+	if mfa.enabled &&
+		config.Session.MagicLinkSuccessfulRedirectURL != "" &&
+		config.Session.MagicLinkFailedRedirectURL != "" &&
+		config.Session.MagicLinkMFARedirectURL == "" {
+		return nil, fmt.Errorf(
+			"Session.MagicLinkMFARedirectURL is required when MFA and magic-link sign-in are both enabled: " +
+				"magic-link completion redirects rather than returning a body, so there is nowhere else to put the challenge",
+		)
 	}
 
 	// Apply a custom bcrypt cost if configured (0 leaves the default).
@@ -181,6 +213,12 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	storage := store.NewStorage(db)
 	rl := resolveRateLimitRules(config.RateLimit)
 
+	// Enrolled users are silently downgraded to a single factor when the capability is
+	// switched off. The library cannot prevent that, so it makes it visible.
+	if !mfa.enabled {
+		warnIfMFADowngraded(context.Background(), storage)
+	}
+
 	return &AuthClient{
 		config:       config,
 		store:        storage,
@@ -191,6 +229,8 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		limiter:      buildRateLimiter(config.RateLimit, storage, rl),
 		trustedProxy: config.TrustedProxy,
 		password:     resolvePasswordPolicy(config.Password),
+		mfa:          mfa,
+		now:          time.Now,
 	}, nil
 }
 
@@ -201,7 +241,7 @@ func (ac *AuthClient) newSessionCookie(token string, expiresAt time.Time) *http.
 // sessionExpiry returns the absolute expiry for a freshly created or refreshed
 // session, based on the configured session duration.
 func (ac *AuthClient) sessionExpiry() time.Time {
-	return time.Now().Add(ac.durations.session)
+	return ac.now().Add(ac.durations.session)
 }
 
 // tokenExpiry returns the absolute expiry for an emailed single-use token of the
@@ -217,10 +257,12 @@ func (ac *AuthClient) tokenExpiry(intent auth.VerificationIntent) time.Time {
 		d = ac.durations.magicLink
 	case auth.EmailChangeIntent:
 		d = ac.durations.emailChange
+	case auth.TwoFactorChallengeIntent:
+		d = ac.durations.twoFactorChallenge
 	default:
 		d = auth.DefaultTokenDuration
 	}
-	return time.Now().Add(d)
+	return ac.now().Add(d)
 }
 
 // newVerification builds a verification row with its expiry already set from the

@@ -63,4 +63,13 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 
 	mux.Handle("GET "+core.PathAccounts, mw(ac.ListAccountsHandler()))
 	mux.Handle("DELETE "+core.PathAccount, mw(ac.UnlinkAccountHandler()))
+
+	if ac.CanUseMFA() {
+		mux.Handle("POST "+core.PathMFATOTPSetup, mw(ac.BeginTOTPEnrolmentHandler()))
+		mux.Handle("POST "+core.PathMFATOTPConfirm, mw(ac.TOTPEnrolmentConfirmHandler()))
+		mux.Handle("POST "+core.PathMFATOTPDisable, mw(ac.DisableTOTPHandler()))
+		mux.Handle("POST "+core.PathMFABackupCodes, mw(ac.RegenerateBackupCodesHandler()))
+		mux.Handle("GET "+core.PathMFAStatus, mw(ac.MFAStatusHandler()))
+		mux.Handle("POST "+core.PathMFAVerify, ac.MFAVerifyHandler())
+	}
 }

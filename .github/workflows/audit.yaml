@@ -35,5 +35,9 @@ jobs:
         with:
           version: v2.12.2
 
+      # The core package spins a Postgres testcontainer per integration test (~142 of
+      # them), which with -race runs well past Go's default 10-minute per-package
+      # timeout. The default was never a deliberate budget for this suite; an explicit,
+      # generous one keeps a genuine hang detectable while letting the suite finish.
       - name: Run tests
-        run: go test -race -count=1 ./...
+        run: go test -race -count=1 -timeout 30m ./...

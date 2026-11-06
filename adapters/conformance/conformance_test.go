@@ -38,16 +38,21 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 	dsn, err := ctr.ConnectionString(t.Context(), "sslmode=disable")
 	require.NoError(t, err)
 
-	// Enable both OAuth and magic-link so every conditionally-mounted route is present.
+	// Enable OAuth, magic-link and MFA so every conditionally-mounted route is present.
 	ac, err := core.NewAuthClient(&core.AuthConfig{
 		Db: &core.DatabaseConfig{Dsn: dsn},
 		Session: &core.SessionConfig{
 			MagicLinkSuccessfulRedirectURL: "http://localhost/success",
 			MagicLinkFailedRedirectURL:     "http://localhost/failed",
+			MagicLinkMFARedirectURL:        "http://localhost/mfa",
 		},
 		OAuth: &core.OAuthConfig{Providers: []goth.Provider{
 			github.New("client-id", "client-secret", "http://localhost"+core.PathOAuthCallback),
 		}},
+		MFA: &core.MFAConfig{
+			// #nosec G101 -- a fixed test key, not a credential
+			EncryptionKey: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		},
 		BaseURL:       "http://localhost",
 		SessionSecret: "conformance-test-session-secret-0123456789",
 	})
@@ -126,6 +131,12 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 		{http.MethodDelete, strings.Replace(core.PathSession, "{id}", "conformance-session-id", 1)},
 		{http.MethodGet, core.PathAccounts},
 		{http.MethodDelete, strings.Replace(core.PathAccount, "{id}", "conformance-account-id", 1)},
+		{http.MethodPost, core.PathMFATOTPSetup},
+		{http.MethodPost, core.PathMFATOTPConfirm},
+		{http.MethodPost, core.PathMFATOTPDisable},
+		{http.MethodPost, core.PathMFABackupCodes},
+		{http.MethodGet, core.PathMFAStatus},
+		{http.MethodPost, core.PathMFAVerify},
 	}
 
 	for name, probe := range probers {

@@ -102,6 +102,41 @@ func (s *VerificationStore) Consume(ctx context.Context, tx *sqlx.Tx, tokenStr s
 	return token, nil
 }
 
+// GetByToken reads a valid token WITHOUT consuming it. It is the peek that precedes a
+// Consume, and exists for one case: the second-factor challenge has to name its owner
+// before the verification attempt is throttled or the submitted code is checked, and a
+// failed code must leave the challenge usable so that one mistyped digit does not send
+// the user back to re-enter their password.
+//
+// Anywhere single-use semantics are what you want, use Consume. This deliberately does
+// not make the token single-use, so a caller that peeks and then acts on the result
+// without consuming it has created a replayable token.
+func (s *VerificationStore) GetByToken(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error) {
+	query := `
+		SELECT * FROM verifications
+		WHERE value = $1 AND intent = $2 AND expires_at > NOW()
+	`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	token := NewVerification(intent, nil, nil)
+	var err error
+	if tx != nil {
+		err = tx.GetContext(ctx, token, query, auth.HashToken(tokenStr), intent)
+	} else {
+		err = s.db.GetContext(ctx, token, query, auth.HashToken(tokenStr), intent)
+	}
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return token, nil
+}
+
 func (s *VerificationStore) Delete(ctx context.Context, tx *sqlx.Tx, token string) error {
 	query := `
 		DELETE FROM verifications 
