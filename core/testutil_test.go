@@ -3,31 +3,23 @@ package core
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
-	"path/filepath"
-	"runtime"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/stretchr/testify/mock"
-	"github.com/testcontainers/testcontainers-go"
 	pgContainer "github.com/testcontainers/testcontainers-go/modules/postgres"
-	"github.com/testcontainers/testcontainers-go/wait"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/db"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
+	"github.com/AdrianTworek/go-auth/internal/testpg"
 )
 
 type MockMailer struct {
@@ -200,71 +192,14 @@ func (a *TestApp) Router() *chi.Mux {
 	return r
 }
 
-// Returns url for migrations directory using file driver for migrations
-func getMigrationPath() string {
-	// Get the path to the migrations directory from the current file
-	_, b, _, _ := runtime.Caller(0)
-	migrationPath := filepath.Join(filepath.Dir(b), "..", "cmd", "migrate", "migrations")
-	migrationDir := strings.Join([]string{"file://", migrationPath}, "")
-	return migrationDir
-}
-
-func RunUpMigrations(db *sql.DB) error {
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
-	if err != nil {
-		return fmt.Errorf("could not initiate postgres driver for migrations %w", err)
-	}
-
-	migrationDir := getMigrationPath()
-	m, err := migrate.NewWithDatabaseInstance(migrationDir, "postgres", driver)
-	if err != nil {
-		return fmt.Errorf("could not initiate database instance for migrations %w", err)
-	}
-	if err := m.Up(); err != nil {
-		// If there are no new migrations, return the error but do not fail the process
-		if !errors.Is(err, migrate.ErrNoChange) {
-			return fmt.Errorf("could not run database migrations %w", err)
-		}
-		fmt.Println("No migrations to apply")
-	}
-
-	return nil
-}
-
+// CreateTestPostgres starts a container of the test's own; see testpg.Run.
 func CreateTestPostgres(ctx context.Context) (*sql.DB, *pgContainer.PostgresContainer, error) {
-	dbUser := "postgres"
-	dbPassword := "postgres"
-	dbName := "postgres"
+	return testpg.Run(ctx)
+}
 
-	ctr, err := pgContainer.Run(
-		ctx, "postgres:17",
-		pgContainer.WithDatabase(dbName),
-		pgContainer.WithUsername(dbUser),
-		pgContainer.WithPassword(dbPassword),
-		// Integration tests run in parallel, and every request a test makes builds a client
-		// with its own pool. Peak use is ~35 connections with 11 tests in flight; the
-		// raised limit keeps a bigger machine or a higher -parallel off the default 100.
-		testcontainers.WithCmdArgs("-c", "max_connections=500"),
-		testcontainers.WithWaitStrategy(
-			wait.ForLog("database system is ready to accept connections").
-				WithOccurrence(2).
-				// A ceiling, not a cost: a healthy container is ready in a second or two.
-				// It was 5s, which a loaded machine or CI runner exceeds — every failure
-				// it produced was spurious.
-				WithStartupTimeout(60*time.Second),
-		),
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not run postgres test container %w", err)
-	}
-	connStr, err := ctr.ConnectionString(ctx, "sslmode=disable")
-	if err != nil {
-		return nil, nil, fmt.Errorf("could not get connection string for postgres test container %w", err)
-	}
-
-	db, err := sql.Open("postgres", connStr)
-
-	return db, ctr, err
+// RunUpMigrations applies every migration to db; see testpg.Migrate.
+func RunUpMigrations(db *sql.DB) error {
+	return testpg.Migrate(db)
 }
 
 type TestUserType string
@@ -556,7 +491,7 @@ func CleanupIntegration(t *testing.T, ctr *pgContainer.PostgresContainer, db *sq
 			}
 			return
 		}
-		if err := testcontainers.TerminateContainer(ctr); err != nil {
+		if err := testpg.Terminate(ctr); err != nil {
 			t.Fatalf("Error in terminating postgres test container: %v", err)
 			return
 		}
