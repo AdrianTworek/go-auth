@@ -82,6 +82,7 @@ func Test_Integration_CleanupExpired(t *testing.T) {
 	require.NoError(t, err)
 
 	ac, err := NewAuthClient(&AuthConfig{
+		Mailer:        &MockMailer{},
 		Db:            &DatabaseConfig{Dsn: app.env.DSN},
 		SessionSecret: app.env.SessionSecret,
 	})

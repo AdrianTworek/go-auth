@@ -183,6 +183,7 @@ func Test_ResolveRateLimitRules_MFAVerify(t *testing.T) {
 // different error.
 func Test_NewAuthClient_RejectsMFAWithoutKey(t *testing.T) {
 	_, err := NewAuthClient(&AuthConfig{
+		Mailer:  &MockMailer{},
 		Db:      &DatabaseConfig{Dsn: "postgres://nobody@127.0.0.1:1/nothing?sslmode=disable"},
 		BaseURL: "http://localhost",
 		MFA:     &MFAConfig{},
@@ -197,6 +198,7 @@ func Test_Integration_NewAuthClient_AcceptsMFAKey(t *testing.T) {
 	defer CleanupIntegration(t, dbCtr, db)
 
 	ac, err := NewAuthClient(&AuthConfig{
+		Mailer:  &MockMailer{},
 		Db:      &DatabaseConfig{Dsn: app.env.DSN},
 		BaseURL: "http://localhost",
 		MFA:     &MFAConfig{EncryptionKey: testHexKey},
@@ -211,6 +213,7 @@ func Test_Integration_CanUseMFA_FalseWhenUnconfigured(t *testing.T) {
 	defer CleanupIntegration(t, dbCtr, db)
 
 	ac, err := NewAuthClient(&AuthConfig{
+		Mailer:  &MockMailer{},
 		Db:      &DatabaseConfig{Dsn: app.env.DSN},
 		BaseURL: "http://localhost",
 	})
@@ -228,6 +231,7 @@ func Test_NewAuthClient_RequiresMagicLinkMFARedirect(t *testing.T) {
 	// this check must run before any resource is opened.
 	newClient := func(session *SessionConfig) error {
 		_, err := NewAuthClient(&AuthConfig{
+			Mailer:  &MockMailer{},
 			Db:      &DatabaseConfig{Dsn: "postgres://nobody@127.0.0.1:1/nothing?sslmode=disable"},
 			BaseURL: "http://localhost",
 			Session: session,
@@ -290,6 +294,7 @@ func Test_Integration_WarnsWhenMFADisabledButUsersEnrolled(t *testing.T) {
 
 	newClientWithoutMFA := func() error {
 		_, err := NewAuthClient(&AuthConfig{
+			Mailer:  &MockMailer{},
 			Db:      &DatabaseConfig{Dsn: app.env.DSN},
 			BaseURL: "http://localhost",
 		})
@@ -330,6 +335,7 @@ func Test_Integration_WarnsWhenMFADisabledButUsersEnrolled(t *testing.T) {
 	t.Run("stays quiet when the capability is configured", func(t *testing.T) {
 		logs := captureLogs(t, slog.LevelWarn)
 		_, err := NewAuthClient(&AuthConfig{
+			Mailer:  &MockMailer{},
 			Db:      &DatabaseConfig{Dsn: app.env.DSN},
 			BaseURL: "http://localhost",
 			MFA:     &MFAConfig{EncryptionKey: testHexKey},
@@ -359,6 +365,7 @@ func Test_Integration_ConstructionSurvivesPendingMigration(t *testing.T) {
 	logs := captureLogs(t, slog.LevelWarn)
 
 	ac, err := NewAuthClient(&AuthConfig{
+		Mailer:  &MockMailer{},
 		Db:      &DatabaseConfig{Dsn: dsn},
 		BaseURL: "http://localhost",
 	})

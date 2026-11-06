@@ -17,37 +17,40 @@ type Mailer interface {
 	SendEmailChangeCompletedNotification(to, newEmail string) error
 }
 
-type AppMailer struct {
+// ConsoleMailer is a development Mailer: instead of sending anything it prints each
+// message, token included, to stdout. Never use it in production — every reset and
+// magic-link token would land in the process's logs.
+type ConsoleMailer struct {
 	from    string
 	baseURL string
 }
 
-func (m *AppMailer) SendVerificationEmail(to, token string) error {
+func (m *ConsoleMailer) SendVerificationEmail(to, token string) error {
 	// Send an email to the user with the verification token
 	fmt.Printf("Sending verification mail to %s from %s with token: %s\n", to, m.from, token)
 	return nil
 }
 
-func (m *AppMailer) SendPasswordResetEmail(to, token string) error {
+func (m *ConsoleMailer) SendPasswordResetEmail(to, token string) error {
 	// Send an email to the user with the password reset token
 	fmt.Printf("Sending password reset mail to %s from %s with token: %s\n", to, m.from, token)
 	return nil
 }
 
-func (m *AppMailer) SendPasswordChangedEmail(to string) error {
+func (m *ConsoleMailer) SendPasswordChangedEmail(to string) error {
 	// Send an email to the user that the password has been changed
 	fmt.Printf("Password has been changed successfully for user: %s\n", to)
 	return nil
 }
 
-func (m *AppMailer) SendMagicLinkEmail(to, token string) error {
+func (m *ConsoleMailer) SendMagicLinkEmail(to, token string) error {
 	// Send an email to the user with the magic link token
 	magicLinkURL := fmt.Sprintf("%s/auth/magic-link/%s", m.baseURL, token)
 	fmt.Printf("Sending magic link mail to %s from %s url: %s\n", to, m.from, magicLinkURL)
 	return nil
 }
 
-func (m *AppMailer) SendEmailChangeEmail(to, token string) error {
+func (m *ConsoleMailer) SendEmailChangeEmail(to, token string) error {
 	// Send a confirmation link to the user's NEW email address; the change applies
 	// only when this link is visited.
 	changeURL := fmt.Sprintf("%s/auth/change-email/%s", m.baseURL, token)
@@ -55,7 +58,7 @@ func (m *AppMailer) SendEmailChangeEmail(to, token string) error {
 	return nil
 }
 
-func (m *AppMailer) SendEmailChangeNotification(to, newEmail, cancelToken string) error {
+func (m *ConsoleMailer) SendEmailChangeNotification(to, newEmail, cancelToken string) error {
 	// Alert the user's current (old) address that a change to newEmail was requested,
 	// with a link to cancel it while it is still pending.
 	cancelURL := fmt.Sprintf("%s/auth/change-email/%s/cancel", m.baseURL, cancelToken)
@@ -63,15 +66,28 @@ func (m *AppMailer) SendEmailChangeNotification(to, newEmail, cancelToken string
 	return nil
 }
 
-func (m *AppMailer) SendEmailChangeCompletedNotification(to, newEmail string) error {
+func (m *ConsoleMailer) SendEmailChangeCompletedNotification(to, newEmail string) error {
 	// Alert the user's previous (old) address that the account email was changed.
 	fmt.Printf("Notifying %s from %s that the account email was changed to %s\n", to, m.from, newEmail)
 	return nil
 }
 
-func New(baseURL string) *AppMailer {
-	return &AppMailer{
+// NewConsole returns a ConsoleMailer for local development. See ConsoleMailer.
+func NewConsole(baseURL string) *ConsoleMailer {
+	return &ConsoleMailer{
 		from:    "autosend@go-auth.com",
 		baseURL: baseURL,
 	}
+}
+
+// AppMailer is the former name of ConsoleMailer.
+//
+// Deprecated: use ConsoleMailer.
+type AppMailer = ConsoleMailer
+
+// New is the former name of NewConsole.
+//
+// Deprecated: use NewConsole, whose name says what it does.
+func New(baseURL string) *ConsoleMailer {
+	return NewConsole(baseURL)
 }
