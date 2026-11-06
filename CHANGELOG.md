@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.8.0](https://github.com/AdrianTworek/go-auth/compare/v1.7.0...v1.8.0) (2026-11-06)
+
+
+### Features
+
+* consumer ergonomics — SMTP without auth, UserFromContext, EventAll ([55af631](https://github.com/AdrianTworek/go-auth/commit/55af631739db55cb289683591de80b3bb62df7e3))
+* **core:** add an EventAll observer hook ([f6e5458](https://github.com/AdrianTworek/go-auth/commit/f6e5458659c5de958b5170b320f47244e2541998))
+* **core:** add linked-account endpoints and retire the legacy columns ([560a39b](https://github.com/AdrianTworek/go-auth/commit/560a39bd901cce782a5065a31a0c3bb430833f45))
+* **core:** add MFA configuration, key validation and an injectable clock ([1ef734d](https://github.com/AdrianTworek/go-auth/commit/1ef734d7762e390c86112ae37ecb330de8728c3b))
+* **core:** add RFC 6238 TOTP, secret encryption and backup-code primitives ([cf7942f](https://github.com/AdrianTworek/go-auth/commit/cf7942fa0cf4371599415b3f7a65d70b3d98236b))
+* **core:** add two-factor enrolment and management endpoints ([3f0cecf](https://github.com/AdrianTworek/go-auth/commit/3f0cecf0f48b2250e08fcf0f4b8de4d52b2dd40f))
+* **core:** expose the signed-in user to consumer handlers ([2448513](https://github.com/AdrianTworek/go-auth/commit/244851328b9e026444cdb727ce2b10ec73f8e3bc))
+* **core:** make provider links first-class and close the OAuth auto-link takeover path ([ef984c6](https://github.com/AdrianTworek/go-auth/commit/ef984c6a19a9509b1297d66c798537c5eec69b93))
+* **core:** make provider links first-class and stop linking on email alone ([0af7bd6](https://github.com/AdrianTworek/go-auth/commit/0af7bd64a699ab1e1d40896661b2b04fefda7b34))
+* **core:** require the second factor on every path that creates a session ([ba9d6bb](https://github.com/AdrianTworek/go-auth/commit/ba9d6bb9693e1900cc08f0674ef3b2cd7d882332))
+* **core:** two-factor authentication with TOTP and backup codes ([4437a6a](https://github.com/AdrianTworek/go-auth/commit/4437a6a67c88df1d47c3dcb050e5d28efec5c319))
+* **db:** add the two-factor tables and the challenge intent ([5c4d8c4](https://github.com/AdrianTworek/go-auth/commit/5c4d8c4cba78852c6dad02acab14377609dbfb08))
+* **db:** ship a single-file schema snapshot for fresh installs ([80e3529](https://github.com/AdrianTworek/go-auth/commit/80e35296e20152b81d34903555243121de5012e5))
+* **db:** ship a single-file schema snapshot for fresh installs ([b44a07c](https://github.com/AdrianTworek/go-auth/commit/b44a07ca69249c36a276dcad8877f24c87220569))
+
+
+### Bug Fixes
+
+* **db:** cascade deletes from users to their sessions and verifications ([3e6e59c](https://github.com/AdrianTworek/go-auth/commit/3e6e59cb6d21180e9b964b39dd4ae15fe1943d47))
+* **mailer:** authenticate to SMTP only when a username is configured ([892bfa7](https://github.com/AdrianTworek/go-auth/commit/892bfa745dd2cf197caedb79b943b7f090d6c305))
+
 ## [1.7.0](https://github.com/AdrianTworek/go-auth/compare/v1.6.0...v1.7.0) (2026-10-28)
 
 
