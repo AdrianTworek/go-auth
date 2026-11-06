@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +23,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	pgContainer "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/db"
@@ -345,26 +349,138 @@ func NewTestAuthConfig(db *DatabaseConfig, s *SessionConfig, oauth *OAuthConfig)
 	}
 }
 
-// SetupIntegration is starting the application, running the migrations, inserting the test data
-// into test database and returns pointer to application instance that is running
+// integrationTemplate is the database every integration test is cloned from: migrated
+// and seeded once, so a test pays for a CREATE DATABASE rather than a container start,
+// six migrations and three password hashes.
+const integrationTemplate = "goauth_template"
+
+// sharedPostgres is the one container the integration tests in a test binary share. It
+// is started on first use, so a run that selects only unit tests never touches Docker,
+// and is removed by testcontainers' reaper when the binary exits.
+var sharedPostgres struct {
+	once    sync.Once
+	err     error
+	ctr     *pgContainer.PostgresContainer
+	admin   *sql.DB
+	baseDSN *url.URL
+	next    atomic.Int64
+}
+
+func startSharedPostgres() error {
+	sharedPostgres.once.Do(func() {
+		sharedPostgres.err = func() error {
+			// Not a test's context: the container outlives the test that starts it.
+			ctx := context.Background()
+			admin, ctr, err := CreateTestPostgres(ctx)
+			if err != nil {
+				return err
+			}
+			dsn, err := ctr.ConnectionString(ctx, "sslmode=disable")
+			if err != nil {
+				return err
+			}
+			base, err := url.Parse(dsn)
+			if err != nil {
+				return err
+			}
+			sharedPostgres.ctr, sharedPostgres.admin, sharedPostgres.baseDSN = ctr, admin, base
+
+			if _, err := admin.ExecContext(ctx, `CREATE DATABASE `+integrationTemplate); err != nil {
+				return fmt.Errorf("creating the template database: %w", err)
+			}
+			tmpl, err := sql.Open("postgres", databaseDSN(integrationTemplate))
+			if err != nil {
+				return err
+			}
+			if err := RunUpMigrations(tmpl); err != nil {
+				_ = tmpl.Close()
+				return err
+			}
+			if err := PopulateDB(ctx, tmpl); err != nil {
+				_ = tmpl.Close()
+				return err
+			}
+			_ = tmpl.Close()
+			return sealTemplate(ctx, admin)
+		}()
+	})
+	return sharedPostgres.err
+}
+
+// sealTemplate leaves the template with no sessions, which CREATE DATABASE ... TEMPLATE
+// requires. Closing the pool is not enough: golang-migrate's driver holds a checked-out
+// connection that sql.DB.Close does not reach, so those backends are terminated, and
+// further connections refused so nothing can reopen one between clones.
+func sealTemplate(ctx context.Context, admin *sql.DB) error {
+	if _, err := admin.ExecContext(ctx, `ALTER DATABASE `+integrationTemplate+` ALLOW_CONNECTIONS false`); err != nil {
+		return fmt.Errorf("sealing the template database: %w", err)
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		var open int
+		if err := admin.QueryRowContext(ctx, `
+			SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity
+			WHERE datname = $1 AND pid <> pg_backend_pid()`, integrationTemplate).Scan(&open); err != nil {
+			return fmt.Errorf("closing sessions on the template database: %w", err)
+		}
+		if open == 0 {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("the template database still has %d open sessions", open)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func databaseDSN(name string) string {
+	u := *sharedPostgres.baseDSN
+	u.Path = "/" + name
+	return u.String()
+}
+
+// newIntegrationDatabase clones the template into a database of the test's own and
+// returns a connection to it and its DSN.
+func newIntegrationDatabase(t *testing.T) (*sql.DB, string, error) {
+	if err := startSharedPostgres(); err != nil {
+		return nil, "", fmt.Errorf("starting the shared postgres container: %w", err)
+	}
+	name := fmt.Sprintf("goauth_test_%d", sharedPostgres.next.Add(1))
+	if _, err := sharedPostgres.admin.ExecContext(t.Context(),
+		`CREATE DATABASE `+name+` TEMPLATE `+integrationTemplate); err != nil {
+		return nil, "", fmt.Errorf("cloning the template database: %w", err)
+	}
+	dsn := databaseDSN(name)
+	db, err := sql.Open("postgres", dsn)
+	return db, dsn, err
+}
+
+// SetupIntegration gives a test its own freshly migrated and seeded database (cloned
+// from a template in a container shared by the whole test binary) and an application
+// pointed at it. Under -short it skips the test instead.
 func SetupIntegration(t *testing.T, c *AuthConfig) (*TestApp, *pgContainer.PostgresContainer, *sql.DB) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
+	// Tests use the minimum bcrypt cost. At the production default a hash takes seconds
+	// under -race, and each test hashes several times; no test asserts on the cost.
+	if err := auth.SetBcryptCost(bcrypt.MinCost); err != nil {
+		t.Fatalf("Error setting the test bcrypt cost: %v", err)
+	}
+
 	env, err := NewEnv(true)
 	if err != nil {
 		t.Fatalf("Error in environment setup: %v", err)
 		return nil, nil, nil
 	}
 
-	db, dbContainer, err := CreateTestPostgres(t.Context())
+	db, dsn, err := newIntegrationDatabase(t)
 	if err != nil {
-		t.Fatalf("Error in creating postgres test container: %v", err)
+		t.Fatalf("Error in creating the test database: %v", err)
 		return nil, nil, nil
 	}
-	// Set the DSN to the connection string of the database to make sure
-	// the application will connect to the test database
-	if env.DSN, err = dbContainer.ConnectionString(t.Context(), "sslmode=disable"); err != nil {
-		t.Fatalf("Error in getting connection string for the database: %v", err)
-		return nil, nil, nil
-	}
+	// Point the application at this test's database.
+	env.DSN = dsn
 
 	if c == nil {
 		c = NewTestAuthConfig(nil, nil, nil)
@@ -375,24 +491,32 @@ func SetupIntegration(t *testing.T, c *AuthConfig) (*TestApp, *pgContainer.Postg
 		t.Fatalf("Error in application bootstrap: %v", err)
 		return nil, nil, nil
 	}
-	err = RunUpMigrations(db)
-	if err != nil {
-		t.Fatalf("Error in migration up: %v", err)
-		return nil, nil, nil
-	}
-	err = PopulateDB(t.Context(), db)
-	if err != nil {
-		t.Fatalf("Error in populating test database: %v", err)
-		return nil, nil, nil
-	}
-	// Run the application in the background to not block main test execution
-	return app, dbContainer, db
+	return app, sharedPostgres.ctr, db
 }
 
+// CleanupIntegration releases what SetupIntegration or CreateTestPostgres handed out,
+// when the test finishes. A database on the shared container is dropped, forcibly,
+// because every request in a test builds a client with its own pool; a container of the
+// test's own is terminated.
 func CleanupIntegration(t *testing.T, ctr *pgContainer.PostgresContainer, db *sql.DB) {
 	t.Cleanup(func() {
+		var name string
+		if ctr == sharedPostgres.ctr {
+			if err := db.QueryRowContext(context.Background(), `SELECT current_database()`).Scan(&name); err != nil {
+				t.Errorf("Error resolving the test database to drop: %v", err)
+			}
+		}
 		if err := db.Close(); err != nil {
 			t.Fatalf("Error in closing database connection: %v", err)
+			return
+		}
+		if ctr == sharedPostgres.ctr {
+			if name != "" {
+				if _, err := sharedPostgres.admin.ExecContext(context.Background(),
+					`DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`); err != nil {
+					t.Errorf("Error dropping test database %s: %v", name, err)
+				}
+			}
 			return
 		}
 		if err := testcontainers.TerminateContainer(ctr); err != nil {
