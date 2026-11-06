@@ -40,6 +40,11 @@ check: fmt vet lint test
 test:
 	@go test -count=1 -v ./...
 
+# Unit tests only: every integration test skips under -short, so this needs no Docker.
+.PHONY: test-unit
+test-unit:
+	@go test -short -count=1 ./...
+
 .PHONY: build
 build:
 	@go build -o bin/main cmd/main.go

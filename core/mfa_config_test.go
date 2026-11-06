@@ -341,6 +341,9 @@ func Test_Integration_WarnsWhenMFADisabledButUsersEnrolled(t *testing.T) {
 // totp_credentials absent, and the enrolment check must not turn that into a startup
 // crash loop.
 func Test_Integration_ConstructionSurvivesPendingMigration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
 	rawDB, ctr, err := CreateTestPostgres(t.Context())
 	require.NoError(t, err)
 	CleanupIntegration(t, ctr, rawDB)

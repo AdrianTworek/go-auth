@@ -87,6 +87,9 @@ func describeSchema(t *testing.T, db *sql.DB) map[string][]string {
 // be exactly what running every migration produces. Apply both to separate databases on
 // one server and compare what the catalog says about each.
 func Test_Integration_SchemaSnapshotMatchesMigrations(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
 	migrated, ctr, err := CreateTestPostgres(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() {

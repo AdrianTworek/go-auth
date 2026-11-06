@@ -32,6 +32,9 @@ import (
 // endpoint can't be added to one adapter and forgotten in the others: any missing
 // route returns 404 here and fails the test.
 func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
 	db, ctr, err := core.CreateTestPostgres(t.Context())
 	require.NoError(t, err)
 	core.CleanupIntegration(t, ctr, db)
@@ -160,6 +163,9 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 // middleware was wrapped by hand: the request carrying the user never reached the
 // framework's context.
 func Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
 	db, ctr, err := core.CreateTestPostgres(t.Context())
 	require.NoError(t, err)
 	core.CleanupIntegration(t, ctr, db)
