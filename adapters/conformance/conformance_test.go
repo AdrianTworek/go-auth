@@ -163,6 +163,9 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 // middleware was wrapped by hand: the request carrying the user never reached the
 // framework's context.
 func Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test: skipped with -short")
+	}
 	db, ctr, err := core.CreateTestPostgres(t.Context())
 	require.NoError(t, err)
 	core.CleanupIntegration(t, ctr, db)
