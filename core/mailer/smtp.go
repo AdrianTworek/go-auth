@@ -17,7 +17,9 @@ type SMTPConfig struct {
 	Host string
 	// Port is the submission port. Defaults to "587" when empty.
 	Port string
-	// Username / Password authenticate to the server (PLAIN auth over STARTTLS).
+	// Username / Password authenticate to the server (PLAIN auth over STARTTLS). Leave
+	// Username empty for a relay that accepts mail without authentication (a local MTA,
+	// an internal relay, Mailpit/MailHog in development): no AUTH is attempted then.
 	Username string
 	Password string
 	// From is the envelope + header From address, e.g. "no-reply@example.com".
@@ -57,7 +59,14 @@ func NewSMTP(cfg SMTPConfig) (*SMTPMailer, error) {
 // STARTTLS when the server advertises it, so credentials are not sent in the clear.
 func (m *SMTPMailer) send(to, subject, body string) error {
 	addr := net.JoinHostPort(m.cfg.Host, m.cfg.Port)
-	auth := smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
+	// Authenticate only when credentials are configured. smtp.SendMail fails outright
+	// ("server doesn't support AUTH") when handed an Auth for a server that does not
+	// advertise the extension, so an unconditional PlainAuth made every unauthenticated
+	// relay unusable.
+	var auth smtp.Auth
+	if m.cfg.Username != "" {
+		auth = smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, "From: %s\r\n", m.cfg.From)
