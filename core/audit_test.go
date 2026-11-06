@@ -496,3 +496,28 @@ func Test_Integration_AuditEventIgnoresForwardedHeaderWhenProxyUntrusted(t *test
 	assert.Equal(t, "192.0.2.1", ev.Audit.IP,
 		"a client must not be able to choose what lands in its own audit record")
 }
+
+// --- catch-all observer ----------------------------------------------------
+
+// An audit sink registered once under EventAll sees ordinary, audit and failure events
+// alike, through the real handlers, without listing any of them.
+func Test_Integration_EventAllObservesEveryKindOfEvent(t *testing.T) {
+	rec := &auditRecorder{}
+	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAll))
+	defer CleanupIntegration(t, dbCtr, db)
+
+	rr := doJSON(t, app, http.MethodPost, PathLogin, nil, map[string]string{
+		"email": TestUserData[DefaultUser].Email, "password": "wrong-password",
+	})
+	require.Equal(t, http.StatusUnauthorized, rr.Code)
+
+	helper := newTestHelper(t, app)
+	cookie := loginCookie(t, helper, DefaultUser)
+	require.Equal(t, http.StatusOK, doJSON(t, app, http.MethodPost, PathLogout, cookie, nil).Code)
+
+	assert.Equal(t, LoginFailureBadPassword, rec.allOf(EventLoginFailed)[0].Audit.Reason)
+	assert.NotEmpty(t, rec.allOf(EventBeforeLogin))
+	assert.Len(t, rec.allOf(EventAfterLogin), 1)
+	assert.Len(t, rec.allOf(EventLogout), 1)
+	assert.Empty(t, rec.allOf(EventAll), "EventAll is a registration key, never an event type")
+}
