@@ -72,6 +72,21 @@ const (
 	// This is NOT a successful sign-in. No session exists yet, and EventAfterLogin fires
 	// only when the challenge has been exchanged for a valid code.
 	EventMFAChallengeIssued AuthEventType = "mfa_challenge_issued"
+
+	// EventAll is a HookMap key, not an event the library fires: hooks registered under
+	// it observe every event, including ones added in later releases. It is meant for
+	// audit logs, metrics and tracing, which would otherwise have to list every event
+	// type and would silently miss new ones.
+	//
+	// These hooks are observers and cannot change what a request does:
+	//
+	//   - They run after the event's own hooks, and run even when one of those
+	//     short-circuited the request or returned an error, so the record is complete.
+	//   - What they return is logged and otherwise ignored, Hook* sentinels included. A
+	//     catch-all that could fail or redirect every endpoint would be too much power to
+	//     hide behind one key; register on the specific event to shape a response.
+	//   - They must not write to the event's ResponseWriter.
+	EventAll AuthEventType = "*"
 )
 
 // AuditTarget* name the kind of thing an audit event acted on, so a handler can read
@@ -220,10 +235,17 @@ func NewHookStore(hooks HookMap) *HookStore {
 // Trigger will trigger any hook that is set for that event type.
 // Returns a flag if endpoint should continue and error if error occurred.
 // If flag is true endpoint should continue if it is false it should return.
+//
+// EventAll observers run after the event's own hooks whatever those returned; see
+// EventAll.
 func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error) {
+	defer hs.observe(ctx, event)
+
 	hooks := hs.hooks[event.Type]
 	if len(hooks) < 1 {
-		slog.Info("skipping hook", "reason", "no handlers found", "type", event.Type)
+		if len(hs.hooks[EventAll]) < 1 {
+			slog.Info("skipping hook", "reason", "no handlers found", "type", event.Type)
+		}
 		return true, nil
 	}
 	for _, hook := range hooks {
@@ -249,6 +271,17 @@ func (hs *HookStore) Trigger(ctx context.Context, event *AuthEvent) (bool, error
 		}
 	}
 	return true, nil
+}
+
+// observe runs the EventAll hooks for an event. Their results are deliberately not
+// propagated: an observer cannot fail, stop or redirect the request.
+func (hs *HookStore) observe(ctx context.Context, event *AuthEvent) {
+	for _, hook := range hs.hooks[EventAll] {
+		if err := hook(ctx, event); err != nil {
+			slog.Warn("EventAll hook returned an error; observers cannot affect the request, so it was ignored",
+				"type", event.Type, "error", err)
+		}
+	}
 }
 
 // HookError is used in hook functions to prematurely respond from endpoints with error message

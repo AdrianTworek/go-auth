@@ -1,6 +1,8 @@
 package gin_adapter
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/markbates/goth/gothic"
 
@@ -72,5 +74,27 @@ func InitAuth(ac *core.AuthClient, r *gin.Engine) {
 		r.POST(core.PathMFABackupCodes, gin.WrapH(mw(ac.RegenerateBackupCodesHandler())))
 		r.GET(core.PathMFAStatus, gin.WrapH(mw(ac.MFAStatusHandler())))
 		r.POST(core.PathMFAVerify, gin.WrapH(ac.MFAVerifyHandler()))
+	}
+}
+
+// Middleware protects your own gin routes with the library's session check. A request
+// without a valid session gets a 401 and the chain is aborted; one with a session
+// continues with the user available from core.UserFromContext(c.Request.Context()).
+//
+// Wrapping ac.AuthMiddleware() with gin.WrapH is not enough for this: the middleware
+// attaches the user to a derived *http.Request, and gin's handlers keep reading the
+// original one unless c.Request is replaced.
+func Middleware(ac *core.AuthClient) gin.HandlerFunc {
+	mw := ac.AuthMiddleware()
+	return func(c *gin.Context) {
+		passed := false
+		mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			passed = true
+			c.Request = r
+			c.Next()
+		})).ServeHTTP(c.Writer, c.Request)
+		if !passed {
+			c.Abort()
+		}
 	}
 }

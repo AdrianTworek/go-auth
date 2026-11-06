@@ -77,3 +77,12 @@ func InitAuth(ac *core.AuthClient, e *echo.Echo) {
 		e.POST(core.PathMFAVerify, echo.WrapHandler(ac.MFAVerifyHandler()))
 	}
 }
+
+// Middleware protects your own echo routes with the library's session check. A request
+// without a valid session gets a 401 and never reaches the route; one with a session
+// reaches it with the user available from core.UserFromContext(c.Request().Context()).
+func Middleware(ac *core.AuthClient) echo.MiddlewareFunc {
+	// WrapMiddleware hands the request the middleware produced back to echo via
+	// SetRequest, which is what carries the authenticated context into the handler.
+	return echo.WrapMiddleware(ac.AuthMiddleware())
+}

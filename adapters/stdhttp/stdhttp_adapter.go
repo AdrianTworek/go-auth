@@ -73,3 +73,13 @@ func InitAuth(ac *core.AuthClient, mux *http.ServeMux) {
 		mux.Handle("POST "+core.PathMFAVerify, ac.MFAVerifyHandler())
 	}
 }
+
+// Middleware protects your own net/http routes with the library's session check. A request
+// without a valid session gets a 401 and never reaches the route; one with a session
+// reaches it with the user available from core.UserFromContext(r.Context()).
+//
+// It is ac.AuthMiddleware() itself, since net/http uses net/http middleware natively; it
+// exists so every adapter offers the same entry point.
+func Middleware(ac *core.AuthClient) func(http.Handler) http.Handler {
+	return ac.AuthMiddleware()
+}
