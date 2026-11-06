@@ -24,6 +24,7 @@ import (
 	gorillaadapter "github.com/AdrianTworek/go-auth/adapters/gorilla"
 	stdadapter "github.com/AdrianTworek/go-auth/adapters/stdhttp"
 	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/core/mailer"
 )
 
 // Test_Conformance_AdaptersRegisterAllRoutes mounts every framework adapter from the
@@ -44,7 +45,8 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 
 	// Enable OAuth, magic-link and MFA so every conditionally-mounted route is present.
 	ac, err := core.NewAuthClient(&core.AuthConfig{
-		Db: &core.DatabaseConfig{Dsn: dsn},
+		Mailer: mailer.NewConsole("http://localhost"),
+		Db:     &core.DatabaseConfig{Dsn: dsn},
 		Session: &core.SessionConfig{
 			MagicLinkSuccessfulRedirectURL: "http://localhost/success",
 			MagicLinkFailedRedirectURL:     "http://localhost/failed",
@@ -174,6 +176,7 @@ func Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes(t *testing.T) {
 	dsn, err := ctr.ConnectionString(t.Context(), "sslmode=disable")
 	require.NoError(t, err)
 	ac, err := core.NewAuthClient(&core.AuthConfig{
+		Mailer:        mailer.NewConsole("http://localhost"),
 		Db:            &core.DatabaseConfig{Dsn: dsn},
 		Session:       &core.SessionConfig{},
 		RateLimit:     &core.RateLimitConfig{Enabled: core.Ptr(false)},

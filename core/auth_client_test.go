@@ -6,6 +6,7 @@ import (
 
 	"github.com/markbates/goth"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestResolveCookieOptions_Defaults(t *testing.T) {
@@ -68,6 +69,7 @@ func TestCanLoginWithMagicLink(t *testing.T) {
 // exercised without a container.
 func TestNewAuthClient_RejectsWeakSessionSecretWithOAuth(t *testing.T) {
 	_, err := NewAuthClient(&AuthConfig{
+		Mailer:        &MockMailer{},
 		Db:            &DatabaseConfig{Dsn: "postgres://unused"},
 		OAuth:         &OAuthConfig{Providers: make([]goth.Provider, 1)},
 		SessionSecret: "too-short",
@@ -78,7 +80,19 @@ func TestNewAuthClient_RejectsWeakSessionSecretWithOAuth(t *testing.T) {
 func TestNewAuthClient_RejectsInvalidBcryptCost(t *testing.T) {
 	_, err := NewAuthClient(&AuthConfig{
 		Db:         &DatabaseConfig{Dsn: "postgres://unused"},
+		Mailer:     &MockMailer{},
 		BcryptCost: 99,
 	})
 	assert.ErrorContains(t, err, "bcrypt cost")
+}
+
+// Leaving Mailer unset used to fall back silently to a stub that prints every token —
+// reset and magic-link ones included — to stdout. It is now a construction error that
+// names both the production and the development choice.
+func TestNewAuthClient_RequiresAMailer(t *testing.T) {
+	_, err := NewAuthClient(&AuthConfig{Db: &DatabaseConfig{Dsn: "postgres://unused"}})
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "Mailer is required")
+	assert.ErrorContains(t, err, "mailer.NewSMTP")
+	assert.ErrorContains(t, err, "mailer.NewConsole")
 }

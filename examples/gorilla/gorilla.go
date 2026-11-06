@@ -15,6 +15,7 @@ import (
 
 	gorilla_adapter "github.com/AdrianTworek/go-auth/adapters/gorilla"
 	"github.com/AdrianTworek/go-auth/core"
+	"github.com/AdrianTworek/go-auth/core/mailer"
 	"github.com/AdrianTworek/go-auth/examples"
 )
 
@@ -47,6 +48,9 @@ func main() {
 	r := mux.NewRouter()
 
 	ac, err := core.NewAuthClient(&core.AuthConfig{
+		// Prints every emailed token to stdout: fine for trying the example, never for
+		// production, where you would use mailer.NewSMTP or your own mailer.Mailer.
+		Mailer: mailer.NewConsole(viper.GetString("BASE_URL")),
 		Db: &core.DatabaseConfig{
 			Dsn: viper.GetString("DSN"),
 		},

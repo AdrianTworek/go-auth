@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"github.com/AdrianTworek/go-auth/core/internal/auth"
 	"github.com/AdrianTworek/go-auth/core/internal/db"
 	"github.com/AdrianTworek/go-auth/core/internal/store"
-	"github.com/AdrianTworek/go-auth/core/mailer"
 )
 
 type AuthClient struct {
@@ -45,9 +45,10 @@ type resolvedDurations struct {
 	twoFactorChallenge time.Duration
 }
 
-// Checks if mailer is configured and magic link redirect urls are also provided
+// CanLoginWithMagicLink reports whether magic-link sign-in is configured, which it is
+// once both redirect URLs are set. (A mailer is required at construction.)
 func (c *AuthClient) CanLoginWithMagicLink() bool {
-	return c.config.Session.MagicLinkSuccessfulRedirectURL != "" && c.config.Session.MagicLinkFailedRedirectURL != "" && c.config.Mailer != nil
+	return c.config.Session.MagicLinkSuccessfulRedirectURL != "" && c.config.Session.MagicLinkFailedRedirectURL != ""
 }
 
 // Redirects from the endpoint to the success frontend url provided by user
@@ -185,6 +186,18 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 		)
 	}
 
+	// Every core flow sends mail — registration cannot complete without a verification
+	// link — so a client without a mailer is misconfigured, not minimal. It used to fall
+	// back silently to a stub that prints every token to stdout, which in production
+	// means password-reset and magic-link tokens written to the logs. Choosing that stub
+	// is still possible, but it has to be a visible decision.
+	if config.Mailer == nil {
+		return nil, errors.New(
+			"a Mailer is required: use mailer.NewSMTP (or your own mailer.Mailer) in production, " +
+				"or mailer.NewConsole for local development, which prints every token to stdout",
+		)
+	}
+
 	// Apply a custom bcrypt cost if configured (0 leaves the default).
 	if config.BcryptCost != 0 {
 		if err := auth.SetBcryptCost(config.BcryptCost); err != nil {
@@ -195,11 +208,6 @@ func NewAuthClient(config *AuthConfig) (*AuthClient, error) {
 	db, err := db.NewPostgres(config.Db.Dsn)
 	if err != nil {
 		return nil, err
-	}
-
-	// If no mailer is provided, use the default one that only logs the messages
-	if config.Mailer == nil {
-		config.Mailer = mailer.New(config.BaseURL)
 	}
 
 	var hookStore *HookStore
