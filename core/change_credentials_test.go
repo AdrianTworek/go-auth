@@ -101,6 +101,7 @@ func mailToken(t *testing.T, app *TestApp, method string) string {
 // --- change password -------------------------------------------------------
 
 func Test_Integration_ChangePasswordSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -137,6 +138,7 @@ func Test_Integration_ChangePasswordSuccess(t *testing.T) {
 }
 
 func Test_Integration_ChangePasswordWrongCurrent(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -152,6 +154,7 @@ func Test_Integration_ChangePasswordWrongCurrent(t *testing.T) {
 }
 
 func Test_Integration_ChangePasswordNoPasswordUserDirectedToReset(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -168,6 +171,7 @@ func Test_Integration_ChangePasswordNoPasswordUserDirectedToReset(t *testing.T) 
 }
 
 func Test_Integration_ChangePasswordRequiresAuth(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -182,6 +186,7 @@ func Test_Integration_ChangePasswordRequiresAuth(t *testing.T) {
 // --- change email ----------------------------------------------------------
 
 func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -227,6 +232,7 @@ func Test_Integration_ChangeEmailFullFlow(t *testing.T) {
 // link is identified by the provider's own account id, the change is safe and the link
 // has to survive it.
 func Test_Integration_ChangeEmailKeepsProviderLinks(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -269,6 +275,7 @@ func Test_Integration_ChangeEmailKeepsProviderLinks(t *testing.T) {
 }
 
 func Test_Integration_ChangeEmailAlreadyTaken(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -283,6 +290,7 @@ func Test_Integration_ChangeEmailAlreadyTaken(t *testing.T) {
 }
 
 func Test_Integration_ChangeEmailNoPasswordUserSkipsReauth(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -303,6 +311,7 @@ func Test_Integration_ChangeEmailNoPasswordUserSkipsReauth(t *testing.T) {
 }
 
 func Test_Integration_ConfirmEmailChangeInvalidToken(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -314,6 +323,7 @@ func Test_Integration_ConfirmEmailChangeInvalidToken(t *testing.T) {
 // aborts a pending change: the token is consumed, so confirmation no longer works and
 // the account email is left untouched.
 func Test_Integration_CancelEmailChange(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -346,6 +356,7 @@ func Test_Integration_CancelEmailChange(t *testing.T) {
 }
 
 func Test_Integration_CancelEmailChangeInvalidToken(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

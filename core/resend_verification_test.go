@@ -34,6 +34,7 @@ func assertGenericVerificationMessage(t *testing.T, rr *httptest.ResponseRecorde
 // Test_Integration_ResendVerificationResendsForUnverifiedUser verifies that an
 // unverified account gets a fresh verification email and a new token row.
 func Test_Integration_ResendVerificationResendsForUnverifiedUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -58,6 +59,7 @@ func Test_Integration_ResendVerificationResendsForUnverifiedUser(t *testing.T) {
 // Test_Integration_ResendVerificationSkipsVerifiedUser verifies that an already-verified
 // account gets the generic response but no email.
 func Test_Integration_ResendVerificationSkipsVerifiedUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -72,6 +74,7 @@ func Test_Integration_ResendVerificationSkipsVerifiedUser(t *testing.T) {
 // (but well-formed) email gets the same generic 200 and sends nothing, so the response
 // can't be used to enumerate accounts.
 func Test_Integration_ResendVerificationUnknownEmailIsGeneric(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -83,6 +86,7 @@ func Test_Integration_ResendVerificationUnknownEmailIsGeneric(t *testing.T) {
 }
 
 func Test_Integration_ResendVerificationInvalidEmail(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

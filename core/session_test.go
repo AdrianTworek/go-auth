@@ -14,6 +14,7 @@ import (
 // Test_Integration_SessionSlidesWhenNearExpiry verifies the middleware rotates the
 // session token when it is close to expiry, and that the old token is invalidated.
 func Test_Integration_SessionSlidesWhenNearExpiry(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -54,6 +55,7 @@ func Test_Integration_SessionSlidesWhenNearExpiry(t *testing.T) {
 // Test_Integration_CleanupExpired verifies that expired sessions and verification
 // tokens are pruned while valid ones are kept.
 func Test_Integration_CleanupExpired(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

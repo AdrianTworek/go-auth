@@ -59,6 +59,7 @@ func decodeSessionList(t *testing.T, rr *httptest.ResponseRecorder) sessionListR
 // --- list ------------------------------------------------------------------
 
 func Test_Integration_ListSessions(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -99,6 +100,7 @@ func Test_Integration_ListSessions(t *testing.T) {
 }
 
 func Test_Integration_ListSessionsRequiresAuth(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -109,6 +111,7 @@ func Test_Integration_ListSessionsRequiresAuth(t *testing.T) {
 // --- revoke others ---------------------------------------------------------
 
 func Test_Integration_RevokeOtherSessions(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -132,6 +135,7 @@ func Test_Integration_RevokeOtherSessions(t *testing.T) {
 }
 
 func Test_Integration_RevokeOtherSessionsRequiresAuth(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -142,6 +146,7 @@ func Test_Integration_RevokeOtherSessionsRequiresAuth(t *testing.T) {
 // --- revoke one by id ------------------------------------------------------
 
 func Test_Integration_RevokeSessionByID(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -167,6 +172,7 @@ func Test_Integration_RevokeSessionByID(t *testing.T) {
 // Revoking the current session by id logs the caller out: the session is gone and the
 // response clears the cookie.
 func Test_Integration_RevokeCurrentSessionByIDClearsCookie(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -188,6 +194,7 @@ func Test_Integration_RevokeCurrentSessionByIDClearsCookie(t *testing.T) {
 // A user can't revoke another user's session: it's scoped to the caller, so an id that
 // belongs to someone else is indistinguishable from a non-existent one (404).
 func Test_Integration_RevokeSessionByIDOtherUserForbidden(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -208,6 +215,7 @@ func Test_Integration_RevokeSessionByIDOtherUserForbidden(t *testing.T) {
 }
 
 func Test_Integration_RevokeSessionByIDNotFound(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -225,6 +233,7 @@ func Test_Integration_RevokeSessionByIDNotFound(t *testing.T) {
 }
 
 func Test_Integration_RevokeSessionByIDRequiresAuth(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -234,6 +243,7 @@ func Test_Integration_RevokeSessionByIDRequiresAuth(t *testing.T) {
 
 // Only the caller's own sessions are listed (never another user's).
 func Test_Integration_ListSessionsScopedToUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -254,6 +264,7 @@ func Test_Integration_ListSessionsScopedToUser(t *testing.T) {
 
 // Expired sessions are excluded from the listing.
 func Test_Integration_ListSessionsExcludesExpired(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

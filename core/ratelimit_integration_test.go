@@ -47,6 +47,7 @@ func loginBody(email, password string) string {
 }
 
 func Test_Integration_RateLimiting(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
