@@ -169,3 +169,21 @@ func (s *VerificationStore) DeleteExpired(ctx context.Context) error {
 	_, err := s.db.ExecContext(ctx, query)
 	return err
 }
+
+// DeleteForUser removes every outstanding token tied to a user: pending password
+// resets, email changes, verification links and two-factor challenges. Magic-link
+// tokens are keyed by address rather than user and are not affected.
+func (s *VerificationStore) DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error {
+	query := `DELETE FROM verifications WHERE user_id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query, userID)
+	} else {
+		_, err = s.db.ExecContext(ctx, query, userID)
+	}
+	return err
+}

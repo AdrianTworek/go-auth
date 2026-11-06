@@ -167,13 +167,16 @@ func newAccountFor(userID string, gothUser goth.User) *store.Account {
 	}
 }
 
-// applyProviderAttributes copies what the provider tells us onto the user: the email is
-// verified by definition, and the avatar is refreshed unless the user has overridden it.
-// Which providers can sign this user in is no longer part of the user record at all —
-// that is what the accounts table answers.
+// applyProviderAttributes copies the provider's profile onto the user: the avatar is
+// refreshed unless the user has overridden it. Which providers can sign this user in is
+// not part of the user record at all — that is what the accounts table answers.
+//
+// It deliberately does not touch EmailVerified. A provider account's address need not be
+// the user's (one can be linked to any account its holder is signed in to), so signing in
+// through it proves nothing about the user's own address. Verification by provider
+// happens only where the provider asserted that very address: registration, and the
+// trusted auto-link, which claims the account.
 func applyProviderAttributes(user *store.User, gothUser goth.User) {
-	user.EmailVerified = true
-
 	if user.AvatarSource == nil || !user.AvatarSource.Valid || user.AvatarSource.String == "oauth" {
 		user.AvatarURL = auth.NewNullString(gothUser.AvatarURL)
 		user.AvatarSource = auth.NewNullString("oauth")
@@ -223,6 +226,15 @@ func (ac *AuthClient) oauthCompleteSignIn(
 
 	var linked *store.Account
 	if createLink {
+		// The trusted auto-link: the provider asserted this account's own address. If it
+		// is unverified, that is the first proof anyone has given of owning it, so the
+		// account is claimed — before the link is created, since claiming removes links.
+		if !user.EmailVerified {
+			if user, err = ac.claimUnverifiedAccount(r.Context(), tx, user.ID); err != nil {
+				serverError(w, r, err)
+				return
+			}
+		}
 		linked, err = ac.store.Account.Create(r.Context(), tx, newAccountFor(user.ID, gothUser))
 		if err != nil {
 			if errors.Is(err, store.ErrAccountLinked) {
@@ -308,7 +320,8 @@ func (ac *AuthClient) oauthCompleteSignIn(
 
 // oauthRegister creates a user and their first provider link together, then signs them in.
 func (ac *AuthClient) oauthRegister(w http.ResponseWriter, r *http.Request, gothUser goth.User) {
-	user := &store.User{Email: gothUser.Email}
+	// A new user's address is the one the provider asserted, so it starts verified.
+	user := &store.User{Email: gothUser.Email, EmailVerified: true}
 	applyProviderAttributes(user, gothUser)
 
 	cont, err := ac.hookStore.Trigger(r.Context(), NewAuthEvent(EventBeforeRegistration, w, r, user))

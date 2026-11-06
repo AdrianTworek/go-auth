@@ -147,3 +147,19 @@ func (s *AccountStore) DeleteByIDForUser(ctx context.Context, tx *sqlx.Tx, userI
 	}
 	return account, nil
 }
+
+// DeleteForUser removes every provider link a user holds.
+func (s *AccountStore) DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error {
+	query := `DELETE FROM accounts WHERE user_id = $1`
+
+	ctx, cancel := context.WithTimeout(ctx, QueryTimeout)
+	defer cancel()
+
+	var err error
+	if tx != nil {
+		_, err = tx.ExecContext(ctx, query, userID)
+	} else {
+		_, err = s.db.ExecContext(ctx, query, userID)
+	}
+	return err
+}

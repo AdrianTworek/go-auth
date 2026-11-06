@@ -30,6 +30,7 @@ type Storage struct {
 		ListForUser(ctx context.Context, userID string) ([]*Account, error)
 		CountForUser(ctx context.Context, tx *sqlx.Tx, userID string) (int, error)
 		DeleteByIDForUser(ctx context.Context, tx *sqlx.Tx, userID, id string) (*Account, error)
+		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
 	}
 	Session interface {
 		Create(ctx context.Context, tx *sqlx.Tx, session *Session) (token string, err error)
@@ -47,6 +48,7 @@ type Storage struct {
 		Consume(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
 		GetByToken(ctx context.Context, tx *sqlx.Tx, tokenStr string, intent auth.VerificationIntent) (*Verification, error)
 		Delete(ctx context.Context, tx *sqlx.Tx, token string) error
+		DeleteForUser(ctx context.Context, tx *sqlx.Tx, userID string) error
 		DeleteExpired(ctx context.Context) error
 	}
 	TOTP interface {
