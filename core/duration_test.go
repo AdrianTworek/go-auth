@@ -73,6 +73,7 @@ func TestResolveDurations(t *testing.T) {
 // agree), and that a configured per-intent token duration reaches the verification
 // row — proving the durations are no longer hard-coded in the store layer.
 func Test_Integration_ConfiguredDurations(t *testing.T) {
+	t.Parallel()
 	c := NewTestAuthConfig(nil, &SessionConfig{
 		LoginAfterRegister: true,
 		Duration:           2 * time.Hour,

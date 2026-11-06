@@ -40,6 +40,7 @@ func enrolTOTP(t *testing.T, app *TestApp, userID string) *store.TOTPCredential 
 // be submitted alongside the legitimate one and both would be accepted: a read-then-write
 // check passes twice when two requests interleave. Exactly one claim may win.
 func Test_Integration_ClaimStep_IsAtomic(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -73,6 +74,7 @@ func Test_Integration_ClaimStep_IsAtomic(t *testing.T) {
 }
 
 func Test_Integration_ClaimStep_RejectsReplayAndRewind(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -92,6 +94,7 @@ func Test_Integration_ClaimStep_RejectsReplayAndRewind(t *testing.T) {
 }
 
 func Test_Integration_ClaimStep_UnknownUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -108,6 +111,7 @@ func Test_Integration_ClaimStep_UnknownUser(t *testing.T) {
 // a factor nobody proved; carrying its step forward would reject the new secret's first
 // code.
 func Test_Integration_Upsert_ResetsEnrolmentState(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -138,6 +142,7 @@ func Test_Integration_Upsert_ResetsEnrolmentState(t *testing.T) {
 }
 
 func Test_Integration_Confirm_OnlyOnce(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -156,6 +161,7 @@ func Test_Integration_Confirm_OnlyOnce(t *testing.T) {
 }
 
 func Test_Integration_TOTPCredential_NotFound(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -165,6 +171,7 @@ func Test_Integration_TOTPCredential_NotFound(t *testing.T) {
 }
 
 func Test_Integration_BackupCodes_SingleUse(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -220,6 +227,7 @@ func Test_Integration_BackupCodes_SingleUse(t *testing.T) {
 // retired set has to be gone, not flagged, or codes the user believes are invalid still
 // open their account.
 func Test_Integration_BackupCodes_DeleteForUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -238,6 +246,7 @@ func Test_Integration_BackupCodes_DeleteForUser(t *testing.T) {
 }
 
 func Test_Integration_BackupCodes_CreateManyEmpty(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -246,6 +255,7 @@ func Test_Integration_BackupCodes_CreateManyEmpty(t *testing.T) {
 }
 
 func Test_Integration_ExistsConfirmed(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -278,6 +288,7 @@ func Test_Integration_ExistsConfirmed(t *testing.T) {
 // added to an enum cannot be used in that same transaction — so this asserts the ALTER
 // TYPE actually took effect, which nothing else in slice 02 would notice.
 func Test_Integration_Migration_ChallengeIntent(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

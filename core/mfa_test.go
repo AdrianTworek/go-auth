@@ -150,6 +150,7 @@ func doPostNoBody(t *testing.T, app *TestApp, path string, cookie *http.Cookie) 
 // --- enrolment -------------------------------------------------------------
 
 func Test_Integration_MFASetupReturnsSecretAndURI(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -189,6 +190,7 @@ func Test_Integration_MFASetupReturnsSecretAndURI(t *testing.T) {
 }
 
 func Test_Integration_MFAConfirmActivatesTheFactor(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -240,6 +242,7 @@ func Test_Integration_MFAConfirmActivatesTheFactor(t *testing.T) {
 }
 
 func Test_Integration_MFAConfirmRejectsWrongState(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -273,6 +276,7 @@ func Test_Integration_MFAConfirmRejectsWrongState(t *testing.T) {
 // replacing a live one must not, because it would invalidate the authenticator the user
 // is currently relying on.
 func Test_Integration_MFASetupRespectsExistingFactor(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -306,6 +310,7 @@ func Test_Integration_MFASetupRespectsExistingFactor(t *testing.T) {
 // --- backup codes ----------------------------------------------------------
 
 func Test_Integration_MFARegenerateBackupCodes(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -333,6 +338,7 @@ func Test_Integration_MFARegenerateBackupCodes(t *testing.T) {
 }
 
 func Test_Integration_MFARegenerateRequiresAFactor(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -351,6 +357,7 @@ func Test_Integration_MFARegenerateRequiresAFactor(t *testing.T) {
 // --- disable ---------------------------------------------------------------
 
 func Test_Integration_MFADisable(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -396,6 +403,7 @@ func Test_Integration_MFADisable(t *testing.T) {
 // any one endpoint: a stolen session must not be able to switch off the protection that
 // exists to make a stolen credential insufficient.
 func Test_Integration_MFAManagementRequiresReauthentication(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -433,6 +441,7 @@ func Test_Integration_MFAManagementRequiresReauthentication(t *testing.T) {
 // real bcrypt hash and would satisfy re-authentication by submitting "". It would pass
 // this test without ever reaching the branch under test.
 func Test_Integration_MFAPasswordlessAccountCanManageTheFactor(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -468,6 +477,7 @@ func Test_Integration_MFAPasswordlessAccountCanManageTheFactor(t *testing.T) {
 }
 
 func Test_Integration_MFARoutesRequireAuthentication(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -484,6 +494,7 @@ func Test_Integration_MFARoutesRequireAuthentication(t *testing.T) {
 // nothing" guarantee. The spec asks for it as a test rather than a sentence because it is
 // the property most likely to be quietly broken by a later change.
 func Test_Integration_MFARoutesAbsentWhenUnconfigured(t *testing.T) {
+	t.Parallel()
 	// NewTestAuthConfig leaves MFA nil, which is the default a consumer gets.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -501,6 +512,7 @@ func Test_Integration_MFARoutesAbsentWhenUnconfigured(t *testing.T) {
 // guarantee: not merely that the new routes are absent, but that the login response a
 // consumer already depends on is untouched.
 func Test_Integration_LoginUnchangedWhenMFAUnconfigured(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -516,6 +528,7 @@ func Test_Integration_LoginUnchangedWhenMFAUnconfigured(t *testing.T) {
 // --- audit events ----------------------------------------------------------
 
 func Test_Integration_MFAAuditEvents(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	c := auditConfig(rec,
 		EventMFAEnabled,
@@ -577,6 +590,7 @@ func Test_Integration_MFAAuditEvents(t *testing.T) {
 // Test_Integration_MFAIssuerIsConfigurable covers user story 24: an operator naming
 // their service so users can tell which code belongs to them.
 func Test_Integration_MFAIssuerIsConfigurable(t *testing.T) {
+	t.Parallel()
 	c := NewTestAuthConfig(nil, nil, nil)
 	c.MFA = &MFAConfig{EncryptionKey: testHexKey, Issuer: "Acme: Staging"}
 	c.Session.MagicLinkMFARedirectURL = "http://localhost:6969/mfa"

@@ -13,6 +13,7 @@ import (
 // Asserted directly against the schema rather than through an endpoint: there is no
 // deletion endpoint yet, and the behaviour under test belongs to the migration.
 func Test_Integration_DeletingAUserCascadesToItsRows(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

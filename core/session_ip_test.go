@@ -178,6 +178,8 @@ func trustedProxyConfig() *AuthConfig {
 // regression guard: the old behaviour stored r.RemoteAddr verbatim, so the port would
 // still be attached here.
 func Test_Integration_SessionRecordsPeerAddressOnEveryPath(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	for _, path := range sessionCreatingPaths() {
 		t.Run(path.name, func(t *testing.T) {
 			app, dbCtr, db := SetupIntegration(t, nil)
@@ -195,6 +197,7 @@ func Test_Integration_SessionRecordsPeerAddressOnEveryPath(t *testing.T) {
 // the proxy's own. Asserted on login alone: the previous test already proves every path
 // goes through the shared resolution, and this covers that resolution's wiring.
 func Test_Integration_SessionRecordsForwardedClientIPWhenProxyTrusted(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, trustedProxyConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -212,6 +215,7 @@ func Test_Integration_SessionRecordsForwardedClientIPWhenProxyTrusted(t *testing
 // client-supplied and must be ignored, so a caller can't choose what their own session
 // record says.
 func Test_Integration_SessionIgnoresForwardedHeaderWhenProxyUntrusted(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

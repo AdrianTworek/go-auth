@@ -117,6 +117,7 @@ func mfaVerify(t *testing.T, app *TestApp, challenge, code string) *httptest.Res
 // --- password login --------------------------------------------------------
 
 func Test_Integration_MFALoginIssuesAChallengeNotASession(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -165,6 +166,7 @@ func Test_Integration_MFALoginIssuesAChallengeNotASession(t *testing.T) {
 }
 
 func Test_Integration_MFAVerifyRejectsBadChallenges(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -217,6 +219,7 @@ func Test_Integration_MFAVerifyRejectsBadChallenges(t *testing.T) {
 // exactly the shape of the attack: a code observed in transit, replayed inside its
 // remaining validity.
 func Test_Integration_MFACodeReplayIsRefused(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -250,6 +253,7 @@ func Test_Integration_MFACodeReplayIsRefused(t *testing.T) {
 // Test_Integration_MFAClockSkew is the usability counterpart: a phone whose clock drifts
 // by a window still works, one that is wildly wrong does not.
 func Test_Integration_MFAClockSkew(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -286,6 +290,7 @@ func Test_Integration_MFAClockSkew(t *testing.T) {
 // --- backup codes ----------------------------------------------------------
 
 func Test_Integration_MFABackupCodeSignIn(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -344,6 +349,7 @@ func Test_Integration_MFABackupCodeSignIn(t *testing.T) {
 // magic link proves control of the inbox, not possession of the second factor, so
 // without this a user with a factor enabled could sign in by requesting one.
 func Test_Integration_MFAMagicLinkHonoursTheFactor(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -389,6 +395,8 @@ func Test_Integration_MFAMagicLinkHonoursTheFactor(t *testing.T) {
 // Test_Integration_MFAOAuthHonoursTheFactor covers the configurable case. The callback
 // returns JSON (consumers redirect from a hook), so the challenge goes in the body.
 func Test_Integration_MFAOAuthHonoursTheFactor(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -456,6 +464,7 @@ func Test_Integration_MFAOAuthHonoursTheFactor(t *testing.T) {
 // creates a user who cannot yet have a factor, and change-password has already
 // re-authenticated and is replacing the caller's own session.
 func Test_Integration_MFADoesNotAffectOtherSessionPaths(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -497,6 +506,7 @@ func Test_Integration_MFADoesNotAffectOtherSessionPaths(t *testing.T) {
 // endpoint from being used to discover who has a second factor. Compared byte for byte,
 // in the manner the failed-login audit tests already use.
 func Test_Integration_MFALoginDoesNotRevealEnrolment(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	app, dbCtr, db := SetupIntegration(t, mfaConfig())
 	defer CleanupIntegration(t, dbCtr, db)
@@ -528,6 +538,7 @@ func Test_Integration_MFALoginDoesNotRevealEnrolment(t *testing.T) {
 // challenged paths do not all have the same shape: an API caller reads the body, but the
 // OAuth callback is a browser navigation that needs redirecting.
 func Test_Integration_MFAChallengeIssuedHook(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	rec := &auditRecorder{}
 	c := auditConfig(rec, EventMFAChallengeIssued, EventAfterLogin, EventMFAVerified, EventMFABackupCodeUsed, EventMFAVerificationFailed)
@@ -585,6 +596,7 @@ func Test_Integration_MFAChallengeIssuedHook(t *testing.T) {
 }
 
 func Test_Integration_MFAVerificationFailureReasons(t *testing.T) {
+	t.Parallel()
 	clock := newTestClock()
 	rec := &auditRecorder{}
 	c := auditConfig(rec, EventMFAVerificationFailed)
@@ -649,6 +661,7 @@ func Test_Integration_MFAVerificationFailureReasons(t *testing.T) {
 // --- verify is absent when the capability is off ---------------------------
 
 func Test_Integration_MFAVerifyAbsentWhenUnconfigured(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

@@ -241,10 +241,17 @@ func CreateTestPostgres(ctx context.Context) (*sql.DB, *pgContainer.PostgresCont
 		pgContainer.WithDatabase(dbName),
 		pgContainer.WithUsername(dbUser),
 		pgContainer.WithPassword(dbPassword),
+		// Integration tests run in parallel, and every request a test makes builds a client
+		// with its own pool. Peak use is ~35 connections with 11 tests in flight; the
+		// raised limit keeps a bigger machine or a higher -parallel off the default 100.
+		testcontainers.WithCmdArgs("-c", "max_connections=500"),
 		testcontainers.WithWaitStrategy(
 			wait.ForLog("database system is ready to accept connections").
 				WithOccurrence(2).
-				WithStartupTimeout(5*time.Second),
+				// A ceiling, not a cost: a healthy container is ready in a second or two.
+				// It was 5s, which a loaded machine or CI runner exceeds — every failure
+				// it produced was spurious.
+				WithStartupTimeout(60*time.Second),
 		),
 	)
 	if err != nil {
@@ -455,24 +462,54 @@ func newIntegrationDatabase(t *testing.T) (*sql.DB, string, error) {
 	return db, dsn, err
 }
 
+// integrationGlobals is process-wide state SetupIntegration needs, initialised exactly
+// once so that parallel tests never write it concurrently: the bcrypt cost is a package
+// variable, and NewEnv goes through viper's global instance.
+var integrationGlobals struct {
+	once sync.Once
+	env  Env
+	err  error
+}
+
+func setupIntegrationGlobals() (Env, error) {
+	integrationGlobals.once.Do(func() {
+		// Tests use the minimum bcrypt cost. At the production default a hash takes
+		// seconds under -race, and each test hashes several times; no test asserts on
+		// the cost.
+		if err := auth.SetBcryptCost(bcrypt.MinCost); err != nil {
+			integrationGlobals.err = err
+			return
+		}
+		env, err := NewEnv(true)
+		if err != nil {
+			integrationGlobals.err = err
+			return
+		}
+		integrationGlobals.env = *env
+	})
+	return integrationGlobals.env, integrationGlobals.err
+}
+
 // SetupIntegration gives a test its own freshly migrated and seeded database (cloned
 // from a template in a container shared by the whole test binary) and an application
 // pointed at it. Under -short it skips the test instead.
+//
+// Integration tests call t.Parallel() unless they touch package-level state, which then
+// says so in a comment at the top of the test. Today that is anything calling
+// SetupGoth (goth's provider registry and gothic's store are globals) and anything that
+// swaps the default slog logger to capture output. Go runs those serial tests before
+// releasing the parallel ones, so the two never overlap.
 func SetupIntegration(t *testing.T, c *AuthConfig) (*TestApp, *pgContainer.PostgresContainer, *sql.DB) {
 	if testing.Short() {
 		t.Skip("integration test: skipped with -short")
 	}
-	// Tests use the minimum bcrypt cost. At the production default a hash takes seconds
-	// under -race, and each test hashes several times; no test asserts on the cost.
-	if err := auth.SetBcryptCost(bcrypt.MinCost); err != nil {
-		t.Fatalf("Error setting the test bcrypt cost: %v", err)
-	}
 
-	env, err := NewEnv(true)
+	sharedEnv, err := setupIntegrationGlobals()
 	if err != nil {
 		t.Fatalf("Error in environment setup: %v", err)
 		return nil, nil, nil
 	}
+	env := &sharedEnv
 
 	db, dsn, err := newIntegrationDatabase(t)
 	if err != nil {

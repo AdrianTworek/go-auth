@@ -192,6 +192,7 @@ func Test_NewAuthClient_RejectsMFAWithoutKey(t *testing.T) {
 }
 
 func Test_Integration_NewAuthClient_AcceptsMFAKey(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -205,6 +206,7 @@ func Test_Integration_NewAuthClient_AcceptsMFAKey(t *testing.T) {
 }
 
 func Test_Integration_CanUseMFA_FalseWhenUnconfigured(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -280,6 +282,7 @@ func captureLogs(t *testing.T, level slog.Level) *bytes.Buffer {
 // enrolled users silently drop to a single factor; the mitigation the spec chose is
 // visibility, not refusal.
 func Test_Integration_WarnsWhenMFADisabledButUsersEnrolled(t *testing.T) {
+	// Not parallel: captureLogs swaps the default slog logger, a process-wide global.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -341,6 +344,7 @@ func Test_Integration_WarnsWhenMFADisabledButUsersEnrolled(t *testing.T) {
 // totp_credentials absent, and the enrolment check must not turn that into a startup
 // crash loop.
 func Test_Integration_ConstructionSurvivesPendingMigration(t *testing.T) {
+	// Not parallel: captureLogs swaps the default slog logger, a process-wide global.
 	if testing.Short() {
 		t.Skip("integration test: skipped with -short")
 	}

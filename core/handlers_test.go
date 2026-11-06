@@ -130,6 +130,7 @@ func Test_Application_Start(t *testing.T) {
 }
 
 func Test_Integration_RegisterUserSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -150,6 +151,7 @@ func Test_Integration_RegisterUserSuccess(t *testing.T) {
 }
 
 func Test_Integration_DontCreateSessionAfterRegister(t *testing.T) {
+	t.Parallel()
 	c := NewTestAuthConfig(nil, &SessionConfig{LoginAfterRegister: false}, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -173,6 +175,7 @@ func Test_Integration_DontCreateSessionAfterRegister(t *testing.T) {
 }
 
 func Test_Integration_RegisterUserInvalidInput(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -187,6 +190,7 @@ func Test_Integration_RegisterUserInvalidInput(t *testing.T) {
 }
 
 func Test_Integration_LoginUserSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -206,6 +210,7 @@ func Test_Integration_LoginUserSuccess(t *testing.T) {
 }
 
 func Test_Integration_LoginUserInvalidInput(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -221,6 +226,7 @@ func Test_Integration_LoginUserInvalidInput(t *testing.T) {
 }
 
 func Test_Integration_GetMeSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -248,6 +254,7 @@ func Test_Integration_GetMeSuccess(t *testing.T) {
 }
 
 func Test_Integration_LogoutUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -276,6 +283,7 @@ func Test_Integration_LogoutUser(t *testing.T) {
 }
 
 func Test_Integration_VerifyEmailSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -314,6 +322,7 @@ func Test_Integration_VerifyEmailSuccess(t *testing.T) {
 }
 
 func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -335,6 +344,7 @@ func Test_Integration_VerifyEmailInvalidToken(t *testing.T) {
 // is the behaviour every framework adapter must share (previously only adapters that
 // buffer the response honored the redirect).
 func Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect(t *testing.T) {
+	t.Parallel()
 	const failedURL = "http://localhost:6969/front/failed"
 
 	c := NewTestAuthConfig(nil, nil, nil)
@@ -360,6 +370,7 @@ func Test_Integration_VerifyEmailInvalidTokenTriggersFailedHookRedirect(t *testi
 }
 
 func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -391,6 +402,7 @@ func Test_Integration_SendPasswordResetLinkSuccess(t *testing.T) {
 }
 
 func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -417,6 +429,7 @@ func Test_Integration_SendPasswordResetLinkInvalidInput(t *testing.T) {
 // unregistered (but well-formed) email gets the same generic 200 as a registered
 // one, so the response can't be used to enumerate accounts.
 func Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -435,6 +448,7 @@ func Test_Integration_SendPasswordResetLinkUnknownEmailIsGeneric(t *testing.T) {
 }
 
 func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -495,6 +509,7 @@ func Test_Integration_CompletePasswordResetSuccess(t *testing.T) {
 }
 
 func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -553,6 +568,7 @@ func Test_Integration_CompletePasswordResetInvalidPassword(t *testing.T) {
 }
 
 func Test_Integration_SendMagicLink(t *testing.T) {
+	t.Parallel()
 	sc := &SessionConfig{
 		MagicLinkSuccessfulRedirectURL: "http://localhost:6969/success",
 		MagicLinkFailedRedirectURL:     "http://localhost:6969/failed",
@@ -590,6 +606,7 @@ func Test_Integration_SendMagicLink(t *testing.T) {
 }
 
 func Test_Integration_CompleteMagicLink(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -649,6 +666,7 @@ func Test_Integration_CompleteMagicLink(t *testing.T) {
 // a magic link for an existing but unverified user marks their email as verified,
 // since possessing the link proves control of the inbox.
 func Test_Integration_CompleteMagicLinkVerifiesExistingUser(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -700,6 +718,7 @@ func Test_Integration_CompleteMagicLinkVerifiesExistingUser(t *testing.T) {
 // without a password (e.g. an OAuth-only account) is persisted with a NULL
 // password rather than an empty byte array.
 func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -721,6 +740,7 @@ func Test_Integration_UserWithoutPasswordStoresNull(t *testing.T) {
 // verification is required, registration does not auto-login the new (unverified)
 // user even if LoginAfterRegister is enabled.
 func Test_Integration_RequireVerifiedEmailSuppressesAutoLogin(t *testing.T) {
+	t.Parallel()
 	c := NewTestAuthConfig(nil, &SessionConfig{
 		LoginAfterRegister:   true,
 		RequireVerifiedEmail: true,
@@ -742,6 +762,7 @@ func Test_Integration_RequireVerifiedEmailSuppressesAutoLogin(t *testing.T) {
 // RequireVerifiedEmail enabled, an unverified user is blocked from password login
 // while a verified user is still allowed.
 func Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin(t *testing.T) {
+	t.Parallel()
 	c := NewTestAuthConfig(nil, &SessionConfig{RequireVerifiedEmail: true}, nil)
 	app, dbCtr, db := SetupIntegration(t, c)
 	defer CleanupIntegration(t, dbCtr, db)
@@ -761,6 +782,7 @@ func Test_Integration_RequireVerifiedEmailBlocksUnverifiedLogin(t *testing.T) {
 // token is consumed atomically: once a reset succeeds, the same token cannot be
 // replayed, and the rejected attempt has no side effects.
 func Test_Integration_PasswordResetTokenIsSingleUse(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -814,6 +836,7 @@ func Test_Integration_PasswordResetTokenIsSingleUse(t *testing.T) {
 // Test_Integration_PasswordResetInvalidatesExistingSessions verifies that
 // completing a password reset revokes all of the user's existing sessions.
 func Test_Integration_PasswordResetInvalidatesExistingSessions(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

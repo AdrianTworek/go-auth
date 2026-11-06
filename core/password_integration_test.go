@@ -39,6 +39,7 @@ func policyConfig(pw *PasswordConfig) *AuthConfig {
 // --- the policy applies at every place a password is set -------------------
 
 func Test_Integration_PasswordPolicyEnforcedAtRegister(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, policyConfig(&PasswordConfig{MinLength: 12, MinCharClasses: 3}))
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -57,6 +58,7 @@ func Test_Integration_PasswordPolicyEnforcedAtRegister(t *testing.T) {
 }
 
 func Test_Integration_PasswordPolicyEnforcedAtChangePassword(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, policyConfig(&PasswordConfig{MinLength: 12}))
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -74,6 +76,7 @@ func Test_Integration_PasswordPolicyEnforcedAtChangePassword(t *testing.T) {
 // The reset flow is the interesting one: the token is single-use and consumed inside the
 // transaction, so a rejected password must not leave the user holding a dead link.
 func Test_Integration_PasswordPolicyAtResetPreservesTheToken(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, policyConfig(&PasswordConfig{MinLength: 12}))
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -104,6 +107,7 @@ func Test_Integration_PasswordPolicyAtResetPreservesTheToken(t *testing.T) {
 
 // Upgrading without configuring anything must not invalidate existing users' passwords.
 func Test_Integration_PasswordPolicyDefaultsAcceptTheHistoricalRule(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -119,6 +123,7 @@ func Test_Integration_PasswordPolicyDefaultsAcceptTheHistoricalRule(t *testing.T
 }
 
 func Test_Integration_PasswordOverBcryptLimitRejected(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -135,6 +140,7 @@ func Test_Integration_PasswordOverBcryptLimitRejected(t *testing.T) {
 // --- breached-password check ----------------------------------------------
 
 func Test_Integration_BreachedPasswordBlockedAtRegister(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -152,6 +158,7 @@ func Test_Integration_BreachedPasswordBlockedAtRegister(t *testing.T) {
 }
 
 func Test_Integration_BreachCheckFailsOpenAtRegister(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -169,6 +176,7 @@ func Test_Integration_BreachCheckFailsOpenAtRegister(t *testing.T) {
 }
 
 func Test_Integration_BreachCheckIsOffByDefault(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -190,6 +198,7 @@ func Test_Integration_BreachCheckIsOffByDefault(t *testing.T) {
 // Throttling runs first, so a caller can't drive unbounded outbound lookups from the
 // server by submitting passwords in a loop.
 func Test_Integration_BreachCheckRunsAfterThrottling(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

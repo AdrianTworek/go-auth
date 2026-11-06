@@ -96,6 +96,7 @@ func changePasswordBody(currentPassword string) map[string]string {
 // --- password changed ------------------------------------------------------
 
 func Test_Integration_AuditPasswordChanged(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventPasswordChanged))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -123,6 +124,7 @@ func Test_Integration_AuditPasswordChanged(t *testing.T) {
 // --- email change ----------------------------------------------------------
 
 func Test_Integration_AuditEmailChangeRequested(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventEmailChangeRequested))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -150,6 +152,7 @@ func Test_Integration_AuditEmailChangeRequested(t *testing.T) {
 }
 
 func Test_Integration_AuditEmailChangeConfirmed(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventEmailChangeConfirmed))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -182,6 +185,7 @@ func Test_Integration_AuditEmailChangeConfirmed(t *testing.T) {
 }
 
 func Test_Integration_AuditEmailChangeCancelled(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventEmailChangeCancelled))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -217,6 +221,7 @@ func Test_Integration_AuditEmailChangeCancelled(t *testing.T) {
 // --- session revocation ----------------------------------------------------
 
 func Test_Integration_AuditSessionRevoked(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventSessionRevoked))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -240,6 +245,7 @@ func Test_Integration_AuditSessionRevoked(t *testing.T) {
 }
 
 func Test_Integration_AuditSessionRevokedNotFiredForUnknownSession(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventSessionRevoked))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -254,6 +260,7 @@ func Test_Integration_AuditSessionRevokedNotFiredForUnknownSession(t *testing.T)
 }
 
 func Test_Integration_AuditAllOtherSessionsRevoked(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAllOtherSessionsRevoked))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -279,6 +286,7 @@ func Test_Integration_AuditAllOtherSessionsRevoked(t *testing.T) {
 // uniform: the anti-enumeration guarantee is about what the *response* reveals, not what
 // a consumer may observe in its own process.
 func Test_Integration_AuditLoginFailedReasonsStayOutOfTheResponse(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventLoginFailed))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -314,6 +322,7 @@ func Test_Integration_AuditLoginFailedReasonsStayOutOfTheResponse(t *testing.T) 
 }
 
 func Test_Integration_AuditLoginFailedUnverifiedEmail(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	c := auditConfig(rec, EventLoginFailed)
 	c.Session.RequireVerifiedEmail = true
@@ -334,6 +343,7 @@ func Test_Integration_AuditLoginFailedUnverifiedEmail(t *testing.T) {
 }
 
 func Test_Integration_AuditLoginFailedNotFiredOnSuccess(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventLoginFailed))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -352,6 +362,7 @@ func Test_Integration_AuditLoginFailedNotFiredOnSuccess(t *testing.T) {
 // A failing audit handler must not fail the request: the action it describes is already
 // durable, so a 500 here would report a rollback that never happened.
 func Test_Integration_AuditHookErrorDoesNotFailRequest(t *testing.T) {
+	t.Parallel()
 	hooks := HookMap{
 		EventPasswordChanged: HookList{
 			func(context.Context, *AuthEvent) error { return errors.New("audit sink is down") },
@@ -380,6 +391,7 @@ func Test_Integration_AuditHookErrorDoesNotFailRequest(t *testing.T) {
 // password through a separate connection from inside the handler, which would still see
 // the old value if the event fired inside the transaction.
 func Test_Integration_AuditEventFiresAfterCommit(t *testing.T) {
+	t.Parallel()
 	var app *TestApp
 	var committed bool
 
@@ -416,6 +428,7 @@ func Test_Integration_AuditEventFiresAfterCommit(t *testing.T) {
 // A handler may still short-circuit the response with a sentinel; what it cannot do is
 // undo the action.
 func Test_Integration_AuditHookSentinelStillShapesResponse(t *testing.T) {
+	t.Parallel()
 	hooks := HookMap{
 		EventPasswordChanged: HookList{
 			func(context.Context, *AuthEvent) error {
@@ -446,6 +459,7 @@ func Test_Integration_AuditHookSentinelStillShapesResponse(t *testing.T) {
 // --- client address --------------------------------------------------------
 
 func Test_Integration_AuditEventCarriesForwardedClientIP(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	c := auditConfig(rec, EventPasswordChanged)
 	c.TrustedProxy = &TrustedProxyConfig{TrustForwardedHeader: true, TrustedHops: 1}
@@ -473,6 +487,7 @@ func Test_Integration_AuditEventCarriesForwardedClientIP(t *testing.T) {
 }
 
 func Test_Integration_AuditEventIgnoresForwardedHeaderWhenProxyUntrusted(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventPasswordChanged))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -502,6 +517,7 @@ func Test_Integration_AuditEventIgnoresForwardedHeaderWhenProxyUntrusted(t *test
 // An audit sink registered once under EventAll sees ordinary, audit and failure events
 // alike, through the real handlers, without listing any of them.
 func Test_Integration_EventAllObservesEveryKindOfEvent(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAll))
 	defer CleanupIntegration(t, dbCtr, db)

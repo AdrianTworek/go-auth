@@ -81,6 +81,8 @@ func sessionCookie(rec *httptest.ResponseRecorder) *http.Cookie {
 }
 
 func Test_Integration_OAuthCallbackCreatesUser(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -115,6 +117,8 @@ func Test_Integration_OAuthCallbackCreatesUser(t *testing.T) {
 // refused. This is the takeover path: a provider that lets its users set an arbitrary
 // email could otherwise claim somebody else's account by asserting their address.
 func Test_Integration_OAuthCallbackRefusesUntrustedProviderOnMatchingEmail(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -144,6 +148,8 @@ func Test_Integration_OAuthCallbackRefusesUntrustedProviderOnMatchingEmail(t *te
 // A provider the operator has declared trustworthy may attach itself to an existing
 // account on a matching email, which is the convenience the trust list buys.
 func Test_Integration_OAuthCallbackLinksTrustedProviderToExistingUser(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -165,6 +171,8 @@ func Test_Integration_OAuthCallbackLinksTrustedProviderToExistingUser(t *testing
 }
 
 func Test_Integration_OAuthCallbackUnauthorizedWithoutSession(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 

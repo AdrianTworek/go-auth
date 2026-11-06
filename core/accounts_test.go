@@ -68,6 +68,8 @@ func signInWithProvider(t *testing.T, ac *AuthClient, provider string, cookie *h
 // provider/id pair, so the later sign-in simply overwrote it and the original way of
 // signing in stopped working, silently.
 func Test_Integration_SecondProviderDoesNotDisplaceTheFirst(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -96,6 +98,8 @@ func Test_Integration_SecondProviderDoesNotDisplaceTheFirst(t *testing.T) {
 // Identity is the provider's own account id, so the same account signing in repeatedly
 // resolves to one user and one link.
 func Test_Integration_RepeatedProviderSignInIsIdempotent(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -115,6 +119,8 @@ func Test_Integration_RepeatedProviderSignInIsIdempotent(t *testing.T) {
 // A provider that changes the email it asserts must still resolve to the same account:
 // the provider account id is the identity, not the address.
 func Test_Integration_ProviderSignInFollowsTheAccountIDNotTheEmail(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -135,6 +141,8 @@ func Test_Integration_ProviderSignInFollowsTheAccountIDNotTheEmail(t *testing.T)
 // --- linking while signed in -----------------------------------------------
 
 func Test_Integration_LinkProviderWhileSignedIn(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -154,6 +162,8 @@ func Test_Integration_LinkProviderWhileSignedIn(t *testing.T) {
 }
 
 func Test_Integration_LinkingAnAccountOwnedByAnotherUserIsRefused(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -179,6 +189,8 @@ func Test_Integration_LinkingAnAccountOwnedByAnotherUserIsRefused(t *testing.T) 
 }
 
 func Test_Integration_LinkingAProviderAlreadyLinkedToYouIsANoOp(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -199,6 +211,8 @@ func Test_Integration_LinkingAProviderAlreadyLinkedToYouIsANoOp(t *testing.T) {
 // --- audit -----------------------------------------------------------------
 
 func Test_Integration_AuditAccountLinked(t *testing.T) {
+	// Not parallel: SetupGoth writes goth's provider registry and gothic's store, which
+	// are package-level globals.
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAccountLinked))
 	defer CleanupIntegration(t, dbCtr, db)
@@ -268,6 +282,7 @@ func linkAccount(t *testing.T, app *TestApp, userID, provider, providerAccountID
 }
 
 func Test_Integration_ListLinkedAccounts(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -290,6 +305,7 @@ func Test_Integration_ListLinkedAccounts(t *testing.T) {
 }
 
 func Test_Integration_ListLinkedAccountsIsScopedToTheCaller(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -303,6 +319,7 @@ func Test_Integration_ListLinkedAccountsIsScopedToTheCaller(t *testing.T) {
 }
 
 func Test_Integration_UnlinkAccount(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -321,6 +338,7 @@ func Test_Integration_UnlinkAccount(t *testing.T) {
 // Unknown, foreign and malformed ids must be indistinguishable, so the endpoint can't be
 // used to probe for existence — the same rule revoke-one-session follows.
 func Test_Integration_UnlinkAccountNotFoundMatrix(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -348,6 +366,7 @@ func Test_Integration_UnlinkAccountNotFoundMatrix(t *testing.T) {
 // Removing the only way a user can sign in would lock them out of their own account, so
 // it is refused rather than allowed.
 func Test_Integration_UnlinkLastSignInMethodIsRefused(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -367,6 +386,7 @@ func Test_Integration_UnlinkLastSignInMethodIsRefused(t *testing.T) {
 }
 
 func Test_Integration_UnlinkIsAllowedWhenAPasswordRemains(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -382,6 +402,7 @@ func Test_Integration_UnlinkIsAllowedWhenAPasswordRemains(t *testing.T) {
 }
 
 func Test_Integration_UnlinkWhenAnotherProviderRemains(t *testing.T) {
+	t.Parallel()
 	app, dbCtr, db := SetupIntegration(t, nil)
 	defer CleanupIntegration(t, dbCtr, db)
 
@@ -399,6 +420,7 @@ func Test_Integration_UnlinkWhenAnotherProviderRemains(t *testing.T) {
 }
 
 func Test_Integration_AuditAccountUnlinked(t *testing.T) {
+	t.Parallel()
 	rec := &auditRecorder{}
 	app, dbCtr, db := SetupIntegration(t, auditConfig(rec, EventAccountUnlinked))
 	defer CleanupIntegration(t, dbCtr, db)
