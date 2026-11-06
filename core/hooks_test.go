@@ -100,3 +100,82 @@ func TestHookStore_StopsAtFirstShortCircuit(t *testing.T) {
 	assert.False(t, cont)
 	assert.Equal(t, 1, called) // second hook never runs
 }
+
+func TestHookStore_EventAllObservesEveryEventAfterItsOwnHooks(t *testing.T) {
+	var calls []string
+	hs := NewHookStore(HookMap{
+		EventBeforeLogin: {func(context.Context, *AuthEvent) error {
+			calls = append(calls, "specific")
+			return nil
+		}},
+		EventAll: {func(_ context.Context, e *AuthEvent) error {
+			calls = append(calls, "all:"+string(e.Type))
+			return nil
+		}},
+	})
+
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	for _, typ := range []AuthEventType{EventBeforeLogin, EventLogout, AuthEventType("added_in_a_later_release")} {
+		cont, err := hs.Trigger(context.Background(), NewAuthEvent(typ, httptest.NewRecorder(), r, nil))
+		assert.True(t, cont)
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, []string{
+		"specific", "all:before_login",
+		"all:logout",
+		"all:added_in_a_later_release",
+	}, calls)
+}
+
+// The record has to be complete, so an observer sees the event even when the event's
+// own hook stopped the request — and the response stays the one that hook chose.
+func TestHookStore_EventAllRunsWhenASpecificHookShortCircuits(t *testing.T) {
+	observed := 0
+	rr := httptest.NewRecorder()
+	hs := NewHookStore(HookMap{
+		EventBeforeLogin: {func(context.Context, *AuthEvent) error {
+			return NewHookError(http.StatusForbidden, "blocked")
+		}},
+		EventAll: {func(context.Context, *AuthEvent) error {
+			observed++
+			return nil
+		}},
+	})
+
+	cont, err := hs.Trigger(context.Background(), triggerEvent(rr))
+	assert.False(t, cont)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, observed)
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+
+	plain := NewHookStore(HookMap{
+		EventBeforeLogin: {func(context.Context, *AuthEvent) error { return errors.New("boom") }},
+		EventAll:         {func(context.Context, *AuthEvent) error { observed++; return nil }},
+	})
+	_, err = plain.Trigger(context.Background(), triggerEvent(httptest.NewRecorder()))
+	assert.Error(t, err)
+	assert.Equal(t, 2, observed)
+}
+
+// Whatever an observer returns — a plain error or a sentinel — the request carries on
+// untouched.
+func TestHookStore_EventAllCannotAffectTheRequest(t *testing.T) {
+	for name, result := range map[string]error{
+		"plain error":   errors.New("sink unavailable"),
+		"hook error":    NewHookError(http.StatusForbidden, "blocked"),
+		"hook response": NewHookResponse(http.StatusTeapot, map[string]string{"hello": "world"}),
+		"hook redirect": NewHookRedirect(http.StatusFound, "https://example.com"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			hs := NewHookStore(HookMap{EventAll: {func(context.Context, *AuthEvent) error { return result }}})
+
+			cont, err := hs.Trigger(context.Background(), triggerEvent(rr))
+			assert.True(t, cont)
+			assert.NoError(t, err)
+			assert.Empty(t, rr.Body.String())
+			assert.Empty(t, rr.Header().Get("Location"))
+		})
+	}
+}

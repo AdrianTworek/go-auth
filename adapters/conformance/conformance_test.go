@@ -1,6 +1,7 @@
 package conformance
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -152,5 +153,134 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 					"adapter %q does not register %s %s", name, rt.method, rt.path)
 			})
 		}
+	}
+}
+
+// Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes protects a route the
+// consumer owns with each adapter's Middleware and asserts the handler can read the
+// signed-in user through core.UserFromContext. This is the path a consumer's own API
+// takes, and the one that broke silently on gin, echo and fiber when the net/http
+// middleware was wrapped by hand: the request carrying the user never reached the
+// framework's context.
+func Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes(t *testing.T) {
+	db, ctr, err := core.CreateTestPostgres(t.Context())
+	require.NoError(t, err)
+	core.CleanupIntegration(t, ctr, db)
+	require.NoError(t, core.RunUpMigrations(db))
+
+	dsn, err := ctr.ConnectionString(t.Context(), "sslmode=disable")
+	require.NoError(t, err)
+	ac, err := core.NewAuthClient(&core.AuthConfig{
+		Db:            &core.DatabaseConfig{Dsn: dsn},
+		Session:       &core.SessionConfig{},
+		RateLimit:     &core.RateLimitConfig{Enabled: core.Ptr(false)},
+		BaseURL:       "http://localhost",
+		SessionSecret: "conformance-test-session-secret-0123456789",
+	})
+	require.NoError(t, err)
+
+	// Sign a user in through the library's own routes to get a real session cookie.
+	const email, password = "consumer@example.com", "P@ssword123_0"
+	authMux := chi.NewRouter()
+	chiadapter.InitAuth(ac, authMux)
+	post := func(path, body string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		authMux.ServeHTTP(rec, req)
+		return rec
+	}
+	require.Equal(t, http.StatusCreated,
+		post(core.PathRegister, `{"email":"`+email+`","password":"`+password+`","confirmPassword":"`+password+`"}`).Code)
+	login := post(core.PathLogin, `{"email":"`+email+`","password":"`+password+`"}`)
+	require.Equal(t, http.StatusOK, login.Code)
+	var session *http.Cookie
+	for _, c := range login.Result().Cookies() {
+		if c.Name == "session" {
+			session = c
+		}
+	}
+	require.NotNil(t, session, "login set no session cookie")
+
+	// whoami is the consumer's handler: it answers with whoever UserFromContext says.
+	const path = "/api/whoami"
+	whoami := func(w http.ResponseWriter, r *http.Request) {
+		u, ok := core.UserFromContext(r.Context())
+		if !ok {
+			http.Error(w, "no user in context", http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(u.Email))
+	}
+
+	gin.SetMode(gin.TestMode)
+
+	chiMux := chi.NewRouter()
+	chiMux.With(chiadapter.Middleware(ac)).Get(path, whoami)
+
+	ginEngine := gin.New()
+	ginEngine.GET(path, ginadapter.Middleware(ac), func(c *gin.Context) { whoami(c.Writer, c.Request) })
+
+	echoSrv := echo.New()
+	echoSrv.GET(path, func(c echo.Context) error {
+		whoami(c.Response(), c.Request())
+		return nil
+	}, echoadapter.Middleware(ac))
+
+	gorillaRouter := mux.NewRouter()
+	gorillaRouter.Handle(path, gorillaadapter.Middleware(ac)(http.HandlerFunc(whoami)))
+
+	stdMux := http.NewServeMux()
+	stdMux.Handle("GET "+path, stdadapter.Middleware(ac)(http.HandlerFunc(whoami)))
+
+	fiberApp := fiber.New()
+	fiberApp.Get(path, fiberadapter.Middleware(ac), func(c *fiber.Ctx) error {
+		u, ok := core.UserFromContext(c.UserContext())
+		if !ok {
+			return c.Status(http.StatusInternalServerError).SendString("no user in context")
+		}
+		return c.SendString(u.Email)
+	})
+
+	type result struct {
+		code int
+		body string
+	}
+	httpProbe := func(h http.Handler) func(*http.Request) result {
+		return func(req *http.Request) result {
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			return result{rec.Code, rec.Body.String()}
+		}
+	}
+	probers := map[string]func(*http.Request) result{
+		"chi":     httpProbe(chiMux),
+		"gin":     httpProbe(ginEngine),
+		"echo":    httpProbe(echoSrv),
+		"gorilla": httpProbe(gorillaRouter),
+		"stdhttp": httpProbe(stdMux),
+		"fiber": func(req *http.Request) result {
+			resp, err := fiberApp.Test(req)
+			if err != nil {
+				return result{}
+			}
+			defer resp.Body.Close()
+			b, _ := io.ReadAll(resp.Body)
+			return result{resp.StatusCode, string(b)}
+		},
+	}
+
+	for name, probe := range probers {
+		t.Run(name, func(t *testing.T) {
+			anon := probe(httptest.NewRequest(http.MethodGet, path, nil))
+			assert.Equal(t, http.StatusUnauthorized, anon.code, "%s let an anonymous request through", name)
+			assert.NotContains(t, anon.body, email)
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.AddCookie(session)
+			got := probe(req)
+			assert.Equal(t, http.StatusOK, got.code, "%s: %s", name, got.body)
+			assert.Equal(t, email, got.body, "%s did not expose the user to the consumer route", name)
+		})
 	}
 }
