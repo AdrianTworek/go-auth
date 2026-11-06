@@ -756,12 +756,12 @@ func (ac *AuthClient) CompleteMagicLinkSignInHandler(extractor ParamExtractor) h
 			}
 		}
 
-		// Completing a magic link proves control of the inbox, which is the same
-		// proof email verification relies on. Mark existing users verified too
-		// (new users above are already created verified).
+		// Completing a magic link proves control of the inbox, which is the same proof
+		// email verification relies on (new users above are already created verified).
+		// An existing unverified account is claimed rather than simply marked verified:
+		// whoever registered it may not own the address, and must not keep a way in.
 		if !user.EmailVerified {
-			user.EmailVerified = true
-			if user, err = ac.store.User.Update(r.Context(), tx, user); err != nil {
+			if user, err = ac.claimUnverifiedAccount(r.Context(), tx, user.ID); err != nil {
 				ac.FailedMagicLinkRedirect(w, r)
 				return
 			}
