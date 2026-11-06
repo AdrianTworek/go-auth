@@ -25,6 +25,7 @@ import (
 	stdadapter "github.com/AdrianTworek/go-auth/adapters/stdhttp"
 	"github.com/AdrianTworek/go-auth/core"
 	"github.com/AdrianTworek/go-auth/core/mailer"
+	"github.com/AdrianTworek/go-auth/internal/testpg"
 )
 
 // Test_Conformance_AdaptersRegisterAllRoutes mounts every framework adapter from the
@@ -36,9 +37,12 @@ func Test_Conformance_AdaptersRegisterAllRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test: skipped with -short")
 	}
-	db, ctr, err := core.CreateTestPostgres(t.Context())
+	db, ctr, err := testpg.Run(t.Context())
 	require.NoError(t, err)
-	core.CleanupIntegration(t, ctr, db)
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = testpg.Terminate(ctr)
+	})
 
 	dsn, err := ctr.ConnectionString(t.Context(), "sslmode=disable")
 	require.NoError(t, err)
@@ -168,10 +172,13 @@ func Test_Conformance_MiddlewareExposesTheUserToConsumerRoutes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test: skipped with -short")
 	}
-	db, ctr, err := core.CreateTestPostgres(t.Context())
+	db, ctr, err := testpg.Run(t.Context())
 	require.NoError(t, err)
-	core.CleanupIntegration(t, ctr, db)
-	require.NoError(t, core.RunUpMigrations(db))
+	t.Cleanup(func() {
+		_ = db.Close()
+		_ = testpg.Terminate(ctr)
+	})
+	require.NoError(t, testpg.Migrate(db))
 
 	dsn, err := ctr.ConnectionString(t.Context(), "sslmode=disable")
 	require.NoError(t, err)
