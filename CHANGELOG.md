@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.1](https://github.com/AdrianTworek/go-auth/compare/v1.8.0...v1.8.1) (2026-11-06)
+
+
+### Bug Fixes
+
+* **core:** require an explicit mailer instead of printing tokens ([3d9267d](https://github.com/AdrianTworek/go-auth/commit/3d9267d106f93c264f37b1aa9867816e8e23c576))
+* **core:** require an explicit mailer instead of printing tokens ([8c8a681](https://github.com/AdrianTworek/go-auth/commit/8c8a681855610e7f96a778229dec1ccbd5eed453))
+* **core:** stop a pre-registered account surviving its owner's sign-in ([2335fdd](https://github.com/AdrianTworek/go-auth/commit/2335fdda2bb445fe863ac9e0841997dd296d2ca2))
+* **core:** stop a pre-registered account surviving its owner's sign-in ([5d6f2b6](https://github.com/AdrianTworek/go-auth/commit/5d6f2b6450e3c7ee5990842459039fc8f88d3b2a))
+* **core:** stop compiling test infrastructure into consumer builds ([e32f065](https://github.com/AdrianTworek/go-auth/commit/e32f0657e1debe201009a1cc867c581a5906edad))
+* **core:** stop compiling test infrastructure into consumer builds ([028ea22](https://github.com/AdrianTworek/go-auth/commit/028ea22e1fc422525cea532d7fb19b925a56a16b))
+
 ## [1.8.0](https://github.com/AdrianTworek/go-auth/compare/v1.7.0...v1.8.0) (2026-11-06)
 
 
