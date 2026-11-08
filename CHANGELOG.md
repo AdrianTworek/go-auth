@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.2](https://github.com/AdrianTworek/go-auth/compare/v1.8.1...v1.8.2) (2026-11-08)
+
+
+### Bug Fixes
+
+* bump the go-minor-patch group with 2 updates ([313d3c5](https://github.com/AdrianTworek/go-auth/commit/313d3c539a0ca346371b572b7a96dc4ca28b44d9))
+* bump the go-minor-patch group with 2 updates ([1a27aed](https://github.com/AdrianTworek/go-auth/commit/1a27aed973ba0ec9e9dc5a79f55962cc29936a7a))
+
 ## [1.8.1](https://github.com/AdrianTworek/go-auth/compare/v1.8.0...v1.8.1) (2026-11-06)
 
 
