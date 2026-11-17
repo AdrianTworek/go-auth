@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.8.3](https://github.com/AdrianTworek/go-auth/compare/v1.8.2...v1.8.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* bump go.opentelemetry.io/otel/trace from 1.44.0 to 1.47.0 ([099c418](https://github.com/AdrianTworek/go-auth/commit/099c4186350a3eb117a973dd94e7f0459a964fd0))
+* bump go.opentelemetry.io/otel/trace from 1.44.0 to 1.47.0 ([4ee7bfb](https://github.com/AdrianTworek/go-auth/commit/4ee7bfbc24a54470ca912fe1213c319bbd67d4b8))
+* bump the go-minor-patch group with 5 updates ([e7e6085](https://github.com/AdrianTworek/go-auth/commit/e7e6085cdc00f8127b4eba1b841b95a45922923b))
+* bump the go-minor-patch group with 5 updates ([2fed621](https://github.com/AdrianTworek/go-auth/commit/2fed621b4dead7566f4123774806ff1b555a2bb8))
+
 ## [1.8.2](https://github.com/AdrianTworek/go-auth/compare/v1.8.1...v1.8.2) (2026-11-08)
 
 
