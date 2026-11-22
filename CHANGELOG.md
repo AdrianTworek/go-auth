@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.4](https://github.com/AdrianTworek/go-auth/compare/v1.8.3...v1.8.4) (2026-11-22)
+
+
+### Bug Fixes
+
+* bump github.com/labstack/echo/v4 ([2789c67](https://github.com/AdrianTworek/go-auth/commit/2789c67874199fa6fbaa21facca5e8a0a7db8612))
+* bump github.com/labstack/echo/v4 from 4.16.4 to 4.16.5 in the go-minor-patch group ([238e4cf](https://github.com/AdrianTworek/go-auth/commit/238e4cfcc31df5c959bed8f704f8410b7228f206))
+
 ## [1.8.3](https://github.com/AdrianTworek/go-auth/compare/v1.8.2...v1.8.3) (2026-11-17)
 
 
